@@ -354,6 +354,43 @@ class ToolRegistry(IToolRegistry):
         self._tools[tool.name] = tool
         self._tool_to_provider[tool.name] = provider_name
 
+    # ================================================================
+    # Decorator API: @registry.tool(name, ...)
+    # ================================================================
+    # Usage:
+    #     @registry.tool("my_tool", description="Does X")
+    #     async def my_tool(args: dict) -> ToolCallResult:
+    #         ...
+
+    def tool(self, name: str, description: str = "", input_schema: dict = None, category: str = "custom"):
+        """Decorator: register a function as an MCP tool."""
+        import inspect
+
+        def decorator(func):
+            is_async = inspect.iscoroutinefunction(func)
+
+            tool_def = ToolDefinition(
+                name=name,
+                description=description,
+                input_schema=input_schema or {"type": "object", "properties": {}},
+                category=category,
+            )
+            self._tools[name] = tool_def
+            self._tool_to_provider[name] = "_decorator_"
+
+            if is_async:
+                async def handler(args: dict) -> ToolCallResult:
+                    result = await func(args)
+                    return result if isinstance(result, ToolCallResult) else ToolCallResult.text_result(str(result))
+            else:
+                async def handler(args: dict) -> ToolCallResult:
+                    result = func(args)
+                    return result if isinstance(result, ToolCallResult) else ToolCallResult.text_result(str(result))
+
+            tool_def._handler = handler
+            return func
+        return decorator
+
     def list_tools(self, category: Optional[str] = None) -> List[Dict[str, Any]]:
         """List all tools in MCP-compatible format."""
         tools = []

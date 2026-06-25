@@ -253,3 +253,62 @@ class ContextCompressor:
             return new_content
 
         return "\n".join(diff)
+
+
+# ================================================================
+# Decorator: @cached(ttl=300)
+# ================================================================
+# Usage:
+#     @cached(ttl=300)
+#     async def expensive_function(arg1, arg2) -> str:
+#         ...
+
+_cached_decorator_cache: Dict[str, Tuple[Any, float]] = {}
+
+
+def cached(ttl: int = 300):
+    """Decorator: cache function return value with TTL (seconds).
+
+    Cache key = function_name + repr(args). Useful for memoizing
+    repetitive tool calls that return deterministic results.
+    """
+    def decorator(func):
+        import functools
+        import inspect
+
+        if inspect.iscoroutinefunction(func):
+            @functools.wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                key = f"{func.__name__}:{args}:{kwargs}"
+                now = time.time()
+                if key in _cached_decorator_cache:
+                    value, expire = _cached_decorator_cache[key]
+                    if now < expire:
+                        logger.debug(f"[cached] HIT: {func.__name__}")
+                        return value
+                    logger.debug(f"[cached] EXPIRED: {func.__name__}")
+                value = await func(*args, **kwargs)
+                _cached_decorator_cache[key] = (value, now + ttl)
+                return value
+            return async_wrapper
+        else:
+            @functools.wraps(func)
+            def sync_wrapper(*args, **kwargs):
+                key = f"{func.__name__}:{args}:{kwargs}"
+                now = time.time()
+                if key in _cached_decorator_cache:
+                    value, expire = _cached_decorator_cache[key]
+                    if now < expire:
+                        logger.debug(f"[cached] HIT: {func.__name__}")
+                        return value
+                    logger.debug(f"[cached] EXPIRED: {func.__name__}")
+                value = func(*args, **kwargs)
+                _cached_decorator_cache[key] = (value, now + ttl)
+                return value
+            return sync_wrapper
+    return decorator
+
+
+def clear_cached_decorator_cache():
+    """Clear all cached decorator results."""
+    _cached_decorator_cache.clear()

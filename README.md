@@ -7,8 +7,9 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.11+-blue?style=flat-square&logo=python">
+  <img src="https://img.shields.io/badge/version-v1.3-brightgreen?style=flat-square">
   <img src="https://img.shields.io/badge/MCP-2024--11--05-green?style=flat-square">
-  <img src="https://img.shields.io/badge/LangGraph-latest-orange?style=flat-square">
+  <img src="https://img.shields.io/badge/LangGraph-compatible-orange?style=flat-square">
   <img src="https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square">
 </p>
 
@@ -109,7 +110,23 @@ curl -X POST http://localhost:9090/mcp \
   -d '{"jsonrpc":"2.0","id":"3","method":"tools/call","params":{"name":"run_command","arguments":{"command":"ls -la","timeout":10}}}'
 ```
 
-### 方式 3：Python SDK 调用
+### 方式 3：Dify 工具接入
+
+在 Dify 工作流中添加 MCP 工具节点，配置为 HTTP 代理：
+
+```yaml
+# Dify 自定义工具配置
+name: MCP Gateway
+endpoint: http://localhost:9090/mcp
+schema: |
+  {
+    "tools": [本网关返回的 tools/list 结果]
+  }
+```
+
+配置后 Dify 工作流可直接调用本网关的文件操作、终端命令、数据库查询等工具。
+
+### 方式 4：Python SDK 调用
 
 ```python
 from mcp_gateway.server import MCPServer
@@ -158,6 +175,32 @@ await server.start(port=9090)
 
 ---
 
+## 测试覆盖
+
+> 当前 **18 个测试用例**（30 个注册测试中 12 个为异步用例，需 pytest-asyncio），CI 自动执行覆盖率报告。
+
+| 测试范围 | 覆盖模块 | 测试项 |
+|----------|----------|--------|
+| 工具注册 | `mcp_gateway/registry.py` | 注册/注销 provider、工具列表、前缀隔离 |
+| 协议编解码 | `mcp_gateway/protocol.py` | JSON-RPC 请求解析、响应格式化、通知识别 |
+| 缓存 | `performance/cache.py` | 缓存命中/未命中、参数差异化识别、统计 |
+| 并行调度 | `performance/parallel.py` | DAG 依赖图构建、拓扑排序 |
+| 状态管理 | `agent_scheduler/state.py` | 状态创建/消息/错误、序列化、快照管理 |
+| 安全检查 | `mcp_gateway/security.py` | 熔断器、权限拦截 |
+| 管道验证 | `agent_scheduler/pipeline.py` | 验证器、规划器(基础) |
+
+运行测试：
+
+```bash
+# 全部测试 + 覆盖率
+pytest tests/ -v --cov=. --cov-report=term-missing
+
+# 仅跑单元测试（跳过异步）
+pytest tests/ -v -k "not asyncio"
+```
+
+---
+
 ## 安全设计
 
 ### 4 层安全防护
@@ -186,15 +229,15 @@ ALLOWED_COMMANDS_PREFIXES = [
 
 ## 架构
 
-### 模块职责
+### 模块职责 & 状态
 
-| 模块 | 职责 | 依赖性 |
-|------|------|--------|
-| `mcp_gateway/` | MCP 协议网关（工具注册、调用、JSON-RPC） | **核心**，无额外依赖 |
-| `performance/` | 缓存、并行调度、模型适配 | **核心**，无额外依赖 |
-| `agent_scheduler/` | LangGraph Agent 调度（Supervisor-Worker） | 可选，需 `pip install langgraph` |
-| `vllm_adapter/` | vLLM 推理服务进程管理 | 可选，需 `vllm` |
-| `rag/` | ChromaDB 知识库检索 | 可选，需 `chromadb` |
+| 模块 | 职责 | 状态 | 依赖性 |
+|------|------|------|--------|
+| `mcp_gateway/` | MCP 协议网关（工具注册、调用、JSON-RPC） | **✅ 核心**，已实现 | 无额外依赖 |
+| `performance/` | 缓存、并行调度、模型适配 | **✅ 核心**，已实现 | 无额外依赖 |
+| `agent_scheduler/` | LangGraph Agent 调度（Supervisor-Worker） | **✅ 核心**，已实现 | 可选，需 `pip install langgraph` |
+| `vllm_adapter/` | vLLM 推理服务进程管理 | **🚧 待扩展** | 可选，需 `vllm` |
+| `rag/` | ChromaDB 知识库检索 | **🚧 待扩展** | 可选，需 `chromadb` |
 
 ### 目录结构
 
@@ -276,19 +319,23 @@ state = manager.load("task_001", version=2) # 加载指定版
 
 ## 依赖说明
 
-所有依赖附带版本上界锁定（`>=min,<max`）：
+核心依赖无版本上界锁定，按最小兼容版本安装：
 
 ```txt
-# 核心（必需）
-fastapi>=0.115.0,<0.116.0    # HTTP 框架
-uvicorn>=0.30.0,<0.31.0       # ASGI 服务器
-pydantic>=2.5.0,<3.0.0       # 数据校验
+# 核心（必需，无附加依赖）
+mcp>=1.0.0      # MCP 协议
+fastapi>=0.100.0  # HTTP 框架
+uvicorn>=0.24.0   # ASGI 服务器
+pydantic>=2.5.0  # 数据校验
 
 # Agent 调度（可选）
-langgraph>=0.2.0,<0.3.0
+langgraph>=0.1.0  # 依赖 langchain-core
 
-# RAG（可选）
-# chromadb>=0.5.0,<0.6.0     # 按需安装
+# RAG（可选，按需安装）
+# chromadb>=0.5.0
+
+# vLLM 本地推理（可选，体积大，按需安装）
+# vllm>=0.6.0
 ```
 
 ---

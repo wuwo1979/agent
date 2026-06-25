@@ -93,5 +93,58 @@ async def demo_integration():
     print("  Trae/Cursor 等 AI Agent IDE 可通过相同方式接入")
 
 
+# ================================================================
+# 装饰器 API 示例：用 @registry.tool() / @cached() 扩展工具
+# ================================================================
+
+async def demo_decorator_api():
+    """展示如何用装饰器注册新工具"""
+    print("=" * 60)
+    print("  装饰器 API 示例 (Decorator API)")
+    print("=" * 60)
+
+    from mcp_gateway.protocol import ToolRegistry
+    from performance.cache import cached
+
+    registry = ToolRegistry()
+
+    # 1. 用 @registry.tool() 注册自定义工具
+    @registry.tool("hello", description="打招呼", input_schema={
+        "type": "object",
+        "properties": {"name": {"type": "string"}},
+        "required": ["name"],
+    })
+    async def hello_tool(args: dict) -> str:
+        name = args.get("name", "world")
+        return f"Hello, {name}!"
+
+    print("  工具 'hello' 已通过装饰器注册")
+
+    # 2. 用 @cached() 缓存重复调用
+    call_count = 0
+
+    @cached(ttl=60)
+    async def get_system_info():
+        nonlocal call_count
+        call_count += 1
+        return {"platform": "test", "call_count": call_count}
+
+    # 第一次调用：执行
+    r1 = await get_system_info()
+    # 第二次调用：命中缓存，call_count 不增加
+    r2 = await get_system_info()
+    assert r2["call_count"] == 1, "缓存未命中，call_count 应为 1"
+
+    print(f"\n  @cached() 验证通过: 首次={r1}, 缓存命中={r2}")
+    print("  装饰器 API 可用: @registry.tool() + @cached()")
+
+
 if __name__ == "__main__":
-    asyncio.run(demo_integration())
+    import logging
+    logging.basicConfig(level=logging.WARNING)
+
+    import sys
+    if "--decorator" in sys.argv:
+        asyncio.run(demo_decorator_api())
+    else:
+        asyncio.run(demo_integration())
