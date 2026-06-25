@@ -1,6 +1,6 @@
 """Agent 调度层主模块"""
-from agent_scheduler.state import AgentState, SubTask, TaskStatus, AgentRole, SnapshotManager
-from agent_scheduler.retry import RetryManager, RetryConfig, CircuitBreaker
+from agent_scheduler.retry import CircuitBreaker, RetryConfig, RetryManager
+from agent_scheduler.state import AgentRole, AgentState, SnapshotManager, SubTask, TaskStatus
 from agent_scheduler.supervisor import SupervisorAgent, WorkerRole, create_supervisor_agent
 
 # Lazy import for graph (requires langgraph)

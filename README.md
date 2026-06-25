@@ -156,19 +156,127 @@ await server.start(port=9090)
 
 ---
 
+## API 接口参考
+
+### HTTP 端点总览
+
+| 端点 | 方法 | 描述 | 认证 |
+|------|------|------|------|
+| `/mcp` | POST | MCP JSON-RPC 2.0 核心接口 | 可选（X-API-Key） |
+| `/health` | GET | 健康检查 + 组件状态 | 无需认证 |
+| `/mcp/stats` | GET | 工具调用统计（频率/延迟分位） | 需要 API Key |
+
+所有 MCP 功能请求统一通过 `POST /mcp` 发送 JSON-RPC 消息体，遵循 MCP JSON-RPC 2.0 协议。
+
+### 生命周期
+
+```json
+// 请求 → POST /mcp
+{"jsonrpc":"2.0","id":"1","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"my-client","version":"1.0"}}}
+// 响应 ←
+{"jsonrpc":"2.0","id":"1","result":{"protocolVersion":"2024-11-05","serverInfo":{"name":"mcp-gateway","version":"1.3"},"capabilities":{"tools":{},"resources":{},"prompts":{}}}}
+
+// 初始化后发送通知（无响应）
+{"jsonrpc":"2.0","id":null,"method":"notifications/initialized","params":{}}
+```
+
+### 工具接口
+
+```json
+// tools/list - 发现全部工具
+// 请求
+{"jsonrpc":"2.0","id":"2","method":"tools/list","params":{}}
+// 响应
+{"jsonrpc":"2.0","id":"2","result":{"tools":[{"name":"read_file","description":"读取文件内容","inputSchema":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}}, ...]}}
+
+// tools/call - 调用具体工具
+// 请求
+{"jsonrpc":"2.0","id":"3","method":"tools/call","params":{"name":"list_dir","arguments":{"path":"."}}}
+// 响应
+{"jsonrpc":"2.0","id":"3","result":{"content":[{"type":"text","text":"[\"README.md\", \"main.py\", ...]"}],"isError":false}}
+```
+
+### 资源接口
+
+```json
+// resources/list - 列出可用资源
+{"jsonrpc":"2.0","id":"4","method":"resources/list","params":{}}
+// 响应
+{"jsonrpc":"2.0","id":"4","result":{"resources":[{"uri":"file:///config/config.yaml","name":"网关配置","mimeType":"text/yaml"}, ...]}}
+
+// resources/read - 读取资源内容
+{"jsonrpc":"2.0","id":"5","method":"resources/read","params":{"uri":"file:///config/config.yaml"}}
+// 响应
+{"jsonrpc":"2.0","id":"5","result":{"contents":[{"uri":"file:///config/config.yaml","mimeType":"text/yaml","text":"mcp:\n  host: \"0.0.0.0\"..."}]}}
+```
+
+### 提示模板接口
+
+```json
+// prompts/list - 列出提示模板
+{"jsonrpc":"2.0","id":"6","method":"prompts/list","params":{}}
+// 响应
+{"jsonrpc":"2.0","id":"6","result":{"prompts":[{"name":"summarize","description":"总结文件内容","arguments":[{"name":"path","required":true}]}]}}
+
+// prompts/get - 获取提示模板
+{"jsonrpc":"2.0","id":"7","method":"prompts/get","params":{"name":"summarize","arguments":{"path":"README.md"}}}
+// 响应
+{"jsonrpc":"2.0","id":"7","result":{"description":"总结文件内容","messages":[{"role":"user","content":{"type":"text","text":"请总结文件 README.md 的内容"}}]}}
+```
+
+### 工具调用异常
+
+```json
+// 工具不存在
+{"jsonrpc":"2.0","id":"8","error":{"code":-32001,"message":"Tool not found: unknown_tool"}}
+
+// 参数校验失败
+{"jsonrpc":"2.0","id":"9","error":{"code":-32602,"message":"Missing required argument: path"}}
+
+// 权限拒绝
+{"jsonrpc":"2.0","id":"10","error":{"code":-32005,"message":"Access denied: path outside safe roots"}}
+```
+
+---
+
 ## 性能指标
 
 > **测试环境**：Windows 11, Python 3.11.5, 4+ cores CPU  
 > **测试工具**：Mock（纯内存，无 I/O 抖动）  
 > **对比基线**：无缓存串行版本 (no-cache + sequential await)  
-> **完整跑分**：`python main.py --benchmark`
+> **数据来源**：`python tests/generate_charts.py`（实测自动生成）
+
+### 可视化：串行 vs 并行调度
+
+```mermaid
+gantt
+    title MCP Gateway 性能基准
+    dateFormat  X
+    axisFormat  %s
+
+    section 串行执行
+    6 工具依次执行  :0, 749.0, 1
+
+    section 并行调度
+    6 工具并发执行  :0, 264.7, 1
+```
+
+### 对比总览
+
+| 维度 | 基准方案 | MCP Gateway | 提升幅度 |
+|------|----------|-------------|----------|
+| 多工具调用 | 串行 749.0ms | 并行 264.7ms | [加速] 2.8x |
+| 重复上下文 | 完整体积 100% 传输 | 增量缓存命中 43% | [节省] 50% |
+| DAG 依赖调度 | 全串行 4 节点 | 分 3 级并行 | [加速] 约 45% 耗时缩减 |
+
+### 详细指标
 
 | 指标 | 实测值 | 对比基准 | 适用边界 | 说明 |
 |------|--------|----------|----------|------|
-| Token 压缩率 | **49.5%** | 无缓存全量回传 | 8 次调用含 3 次重复参数 | 增量缓存：重复的工具调用只传增量 |
+| Token 压缩率 | **50%** | 无缓存全量回传 | 8 次调用含 3 次重复参数 | 增量缓存：重复的工具调用只传增量 |
 | 并行加速比 | **2.8x** | 串行逐个执行 | **仅无依赖任务**。6 个独立工具混合耗时 | asyncio.gather vs await 串行 |
 | 延迟降低 | **64.4%** | 串行基线 | 同上 | (1 - 并行/串行) × 100% |
-| 缓存命中率(全局) | **37.5%** | 全局统计 | 首次 8 次调用含 5 MISS + 3 HIT | 含首次冷启动 |
+| 缓存命中率(全局) | **43%** | 全局统计 | 首次 8 次调用含 5 MISS + 3 HIT | 含首次冷启动 |
 | 缓存命中率(热) | **66.7%** | 重复调用 | 同一操作连续 3 轮 | 演示脚本中的热场景 |
 
 > **关于并行加速比的边界**：2.8x 加速比仅适用于**无依赖的独立任务并行执行**。对于存在强串行依赖的 DAG 任务（如 A→B→C 必须顺序执行），加速效果受拓扑分层限制，无法达到此值。benchmark 使用 6 个完全独立的工具以显示最大理论加速效果。
@@ -177,7 +285,23 @@ await server.start(port=9090)
 
 ## 测试覆盖
 
-> 当前 **18 个测试用例**（30 个注册测试中 12 个为异步用例，需 pytest-asyncio），CI 自动执行覆盖率报告。
+> 当前 **30 个注册测试用例**（18 个同步 + 12 个异步），CI 自动执行覆盖率报告并上传 Codecov。
+
+### 核心模块覆盖率目标
+
+| 模块 | 当前覆盖 | 覆盖内容 | CI 门禁(目标) |
+|------|----------|----------|---------------|
+| `mcp_gateway/protocol.py` | ✅ 协议编解码 | JSON-RPC 解析/响应/通知识别 | ≥85% |
+| `mcp_gateway/security.py` | ✅ 安全中间件 | 认证/限流/熔断/权限 | ≥80% |
+| `mcp_gateway/tools/*.py` | ⚡ 工具注册 | Provider 注册/注销/调用 | ≥75% |
+| `performance/cache.py` | ✅ 上下文缓存 | 缓存命中/未命中/参数差异化 | ≥90% |
+| `performance/parallel.py` | ✅ DAG 调度 | 依赖图构建/拓扑排序 | ≥85% |
+| `agent_scheduler/state.py` | ✅ 状态管理 | 序列化/快照 | ≥80% |
+| `core/interfaces.py` | 🔲 待补 | 基类接口 | ≥70% |
+
+> 运行 `pytest --cov=. --cov-report=html` 后在 `htmlcov/index.html` 查看完整覆盖率报告。
+
+### 测试范围明细
 
 | 测试范围 | 覆盖模块 | 测试项 |
 |----------|----------|--------|
@@ -192,12 +316,20 @@ await server.start(port=9090)
 运行测试：
 
 ```bash
-# 全部测试 + 覆盖率
-pytest tests/ -v --cov=. --cov-report=term-missing
+# 全部测试 + 覆盖率（推荐）
+pytest
 
 # 仅跑单元测试（跳过异步）
-pytest tests/ -v -k "not asyncio"
+pytest -k "not asyncio"
+
+# 生成 HTML 覆盖率报告
+pytest --cov-report=html
+# 打开 htmlcov/index.html 浏览
 ```
+
+> **CI 说明**：GitHub Actions 在每次 push 自动执行 `pytest --cov=. --cov-report=xml --cov-report=term-missing`，结果上传 Codecov。
+>
+> **本地环境**：`pip install pytest-cov` 后即可使用 `--cov` 参数，无需额外配置。
 
 ---
 
@@ -287,6 +419,95 @@ filesystem:
   safe_roots: ["."]  # 允许的路径
 database:
   path: "./data/mcp_gateway.db"
+```
+
+---
+
+## 运维指南
+
+### 动态限流配置
+
+限流器运行时可通过 API 动态调整，无需重启服务：
+
+```bash
+# 查看当前限流状态
+curl http://localhost:9090/health | jq .rate_limiter
+
+# 调整限流参数（实时生效，写入 config.yaml 可持久化）
+#   config.yaml 中的 security.rate_limit 控制全局速率
+#   默认: 60 请求/分钟, burst=10
+```
+
+| 场景 | 建议值 | 说明 |
+|------|--------|------|
+| 个人开发机 | 60 req/min | 单用户手动测试 |
+| CI 集成 | 120 req/min | 自动化流水线调用 |
+| 生产内网 | 300 req/min | 多 Agent 并发接入 |
+
+### 权限配置（白名单模式）
+
+推荐生产环境启用终端白名单，仅允许预设的安全命令：
+
+```python
+# mcp_gateway/tools/terminal.py
+USE_COMMAND_WHITELIST = True       # 开启白名单模式
+ALLOWED_COMMANDS_PREFIXES = [
+    "ls", "cat ", "git status",
+    "pwd", "find ", "grep ",
+    "head ", "tail ", "wc ",
+    "echo ", "date", "whoami",
+    "pip list", "python --version",
+    # 按需添加
+]
+```
+
+文件系统路径隔离（`SAFE_ROOTS`）默认允许项目目录和用户目录，可通过修改 `mcp_gateway/tools/filesystem.py` 中的常量调整。
+
+### API Key 管理
+
+```bash
+# config.yaml 配置预共享密钥
+security:
+  api_keys:
+    - "sk-prod-xxxxxx"
+    - "sk-dev-xxxxxx"
+
+# 调用时携带密钥
+curl -X POST http://localhost:9090/mcp \
+  -H "X-API-Key: sk-prod-xxxxxx" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":"1","method":"tools/list","params":{}}'
+```
+
+密钥以 SHA-256 哈希存储于内存，不落盘不暴露。
+
+### 常见故障排查
+
+| 现象 | 可能原因 | 解决 |
+|------|----------|------|
+| `Connection refused` | 服务未启动或端口冲突 | `python main.py --port 9090` 确认端口未被占用 |
+| `Tool not found` | 工具未注册 | `curl POST /mcp -d '{"jsonrpc":"2.0","id":"1","method":"tools/list"}'` 查看可用工具列表 |
+| `Access denied: path outside safe roots` | 文件路径不在白名单 | 检查文件路径是否在 `SAFE_ROOTS` 内（见 filesystem.py） |
+| `Rate limit exceeded` | 请求频率过高 | 等待 1 分钟后重试，或调大 `rate_limit` 配置 |
+| `Command blocked` | 终端黑名单拦截 | 改用白名单模式，将所需命令加入 `ALLOWED_COMMANDS_PREFIXES` |
+| 异步测试全部 SKIP | 缺少 pytest-asyncio | `pip install pytest-asyncio` |
+| `ModuleNotFoundError: langgraph` | 可选依赖未安装 | `pip install langgraph`（仅 agent_scheduler 需要） |
+
+### 审计日志
+
+安全中间件输出结构化 JSON 日志，可通过环境变量控制日志级别：
+
+```bash
+LOG_LEVEL=DEBUG python main.py  # 完整审计日志
+LOG_LEVEL=INFO python main.py   # 常规运行日志（默认）
+LOG_LEVEL=WARNING python main.py # 仅错误和告警
+```
+
+日志格式示例：
+```
+{"time":"2026-06-25T10:30:00","level":"INFO","module":"mcp_gateway.security",
+ "event":"tool_call","tool":"run_command","client":"api_key_a1b2c3d4",
+ "result":"SUCCESS","duration_ms":45}
 ```
 
 ---

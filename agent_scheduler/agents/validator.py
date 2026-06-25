@@ -4,10 +4,9 @@ Agent 调度层 - 校验 Agent
 """
 
 import json
+import logging
 
 from agent_scheduler.state import AgentState, TaskStatus
-
-import logging
 
 # Optional langchain imports
 try:

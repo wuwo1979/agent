@@ -76,12 +76,12 @@ async def demo_codebase_health_check():
     Scenario: Analyze a Python project for code health metrics.
     Pipeline: list files -> read sources -> analyze -> git status -> report
     """
+    from agent_scheduler.graph import create_agent_graph
     from mcp_gateway.protocol import ToolRegistry
+    from mcp_gateway.tools.database import DatabaseToolProvider
     from mcp_gateway.tools.filesystem import FilesystemToolProvider
     from mcp_gateway.tools.terminal import TerminalToolProvider
-    from mcp_gateway.tools.database import DatabaseToolProvider
     from performance.cache import IncrementalContextCache
-    from agent_scheduler.graph import create_agent_graph
 
     Printer.title("MCP Gateway + Multi-Agent: Codebase Health Check")
 
@@ -259,7 +259,7 @@ async def demo_parallel_showcase():
     check system info, query DB, read config, and check env vars.
     """
     from mcp_gateway.protocol import ToolRegistry
-    from performance.parallel import ParallelScheduler, ParallelBenchmark
+    from performance.parallel import ParallelBenchmark, ParallelScheduler
     from tests.benchmark import MockBenchmarkProvider
 
     Printer.title("Parallel Execution: 6-Tool Code Review Pipeline")

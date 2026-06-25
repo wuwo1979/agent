@@ -3,19 +3,19 @@ MCP Gateway layer unit tests.
 Uses MockTestProvider pattern for proper IToolProvider-based testing.
 """
 
-import sys
 import os
+import sys
+
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from core.types import JSONRPCRequest, JSONRPCResponse, ToolCallResult, ToolDefinition
 from mcp_gateway.protocol import (
+    BaseToolProvider,
     MCPProtocolHandler,
     ToolRegistry,
-    BaseToolProvider,
 )
-from core.types import ToolDefinition, ToolCallResult, JSONRPCRequest, JSONRPCResponse
-
 
 # ============================================================
 # Mock Test Provider

@@ -4,11 +4,11 @@
 """
 
 import asyncio
-import time
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
-from dataclasses import dataclass, field
-from collections import defaultdict
 import logging
+import time
+from collections import defaultdict
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 logger = logging.getLogger("performance.parallel")
 

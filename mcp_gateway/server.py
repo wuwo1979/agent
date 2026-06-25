@@ -12,26 +12,26 @@ Architecture:
     └── MCPTransport (HTTP/SSE/STDIO)
 """
 
-import asyncio
 import argparse
+import asyncio
 import logging
-import sys
 import os
+import sys
 from typing import Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from config.loader import ConfigLoader
+from core.types import JSONRPCRequest
 from mcp_gateway.protocol import (
     MCPProtocolHandler,
-    ToolRegistry,
     SecurityMiddleware,
+    ToolRegistry,
 )
-from mcp_gateway.transport import MCPTransport
+from mcp_gateway.tools.database import DatabaseToolProvider
 from mcp_gateway.tools.filesystem import FilesystemToolProvider
 from mcp_gateway.tools.terminal import TerminalToolProvider
-from mcp_gateway.tools.database import DatabaseToolProvider
-from core.types import JSONRPCRequest
-from config.loader import ConfigLoader
+from mcp_gateway.transport import MCPTransport
 
 logging.basicConfig(
     level=logging.INFO,

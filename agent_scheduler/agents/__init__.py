@@ -9,7 +9,7 @@ except ImportError:
     SimplePlannerAgent = None
 
 try:
-    from agent_scheduler.agents.validator import ValidatorAgent, SimpleValidator
+    from agent_scheduler.agents.validator import SimpleValidator, ValidatorAgent
 except ImportError:
     ValidatorAgent = None
     SimpleValidator = None

@@ -8,13 +8,18 @@ Design principles:
 """
 
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from typing import Any, AsyncIterator, Dict, List, Optional
-from core.types import (
-    ToolDefinition, ToolCallResult, AgentState, SearchResult,
-    Document, CacheEntry,
-)
 
+from core.types import (
+    AgentState,
+    CacheEntry,
+    Document,
+    SearchResult,
+    ToolCallResult,
+    ToolDefinition,
+)
 
 # ============================================================
 # Lifecycle Interface

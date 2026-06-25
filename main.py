@@ -9,11 +9,11 @@ Usage:
     python main.py --demo                # Run demo
 """
 
-import asyncio
 import argparse
-import sys
-import os
+import asyncio
 import json
+import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -22,11 +22,11 @@ async def run_demo():
     """
     Run full demo showing MCP gateway + Agent scheduling capabilities.
     """
+    from agent_scheduler.graph import create_agent_graph
     from mcp_gateway.protocol import ToolRegistry
+    from mcp_gateway.tools.database import DatabaseToolProvider
     from mcp_gateway.tools.filesystem import FilesystemToolProvider
     from mcp_gateway.tools.terminal import TerminalToolProvider
-    from mcp_gateway.tools.database import DatabaseToolProvider
-    from agent_scheduler.graph import create_agent_graph
     from performance.cache import IncrementalContextCache
 
     print("=" * 60)
@@ -123,4 +123,13 @@ async def main():
 
 
 if __name__ == "__main__":
+    asyncio.run(main())
+
+
+def entry_point():
+    """Entry point for pip-installed console script and PyInstaller exe."""
+    import sys
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print(__doc__.strip())
+        return
     asyncio.run(main())

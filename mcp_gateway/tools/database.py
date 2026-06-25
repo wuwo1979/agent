@@ -6,13 +6,14 @@ Uses SQLite as the default backend for simplicity.
 """
 
 from __future__ import annotations
+
 import json
-import sqlite3
 import os
+import sqlite3
 from typing import Any, Dict
 
-from core.types import ToolDefinition, ToolCallResult
 from core.exceptions import ToolExecutionError
+from core.types import ToolCallResult, ToolDefinition
 from mcp_gateway.protocol import BaseToolProvider
 
 

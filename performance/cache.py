@@ -6,11 +6,11 @@
 
 import hashlib
 import json
+import logging
 import time
-from typing import Any, Dict, Optional, Tuple
 from collections import OrderedDict
 from dataclasses import dataclass, field
-import logging
+from typing import Any, Dict, Optional, Tuple
 
 logger = logging.getLogger("performance.cache")
 

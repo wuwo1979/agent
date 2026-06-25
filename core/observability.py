@@ -5,11 +5,11 @@ Provides structured metrics for the MCP gateway and agent scheduler,
 enabling real-time monitoring and OpenTelemetry-compatible export.
 """
 
-import time
 import json
-from dataclasses import dataclass, field, asdict
-from typing import Dict, List
+import time
 from collections import defaultdict
+from dataclasses import asdict, dataclass, field
+from typing import Dict, List
 
 
 @dataclass

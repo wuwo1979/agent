@@ -18,18 +18,17 @@ Test Environment (this run):
 import asyncio
 import json
 import os
+import platform
 import sys
 import time
-import platform
 from typing import Any, Dict
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from mcp_gateway.protocol import ToolRegistry, BaseToolProvider
-from core.types import ToolDefinition, ToolCallResult
-from performance.cache import IncrementalContextCache, ContextCompressor
-from performance.parallel import ParallelScheduler, DependencyGraph, ParallelBenchmark
-
+from core.types import ToolCallResult, ToolDefinition
+from mcp_gateway.protocol import BaseToolProvider, ToolRegistry
+from performance.cache import ContextCompressor, IncrementalContextCache
+from performance.parallel import DependencyGraph, ParallelBenchmark, ParallelScheduler
 
 # ============================================================
 # Mock Benchmark Tool Provider

@@ -6,14 +6,15 @@ References: MCP Specification tools/list, tools/call primitives.
 """
 
 from __future__ import annotations
-import os
+
 import glob
 import json
-from typing import Any, Dict, List
+import os
 from datetime import datetime
+from typing import Any, Dict, List
 
-from core.types import ToolDefinition, ToolCallResult
-from core.exceptions import ToolExecutionError, PermissionDeniedError
+from core.exceptions import PermissionDeniedError, ToolExecutionError
+from core.types import ToolCallResult, ToolDefinition
 from mcp_gateway.protocol import BaseToolProvider
 
 # Safe directories (prevent path traversal attacks)

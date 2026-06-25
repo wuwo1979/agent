@@ -1,0 +1,31 @@
+{
+  "env": {
+    "python": "3.11.5",
+    "mock_mode": "纯内存无 I/O",
+    "tool_set": "6 个独立工具 (2×50ms + 2×100ms + 2×200ms)"
+  },
+  "parallel": {
+    "avg_parallel_ms": "264.7",
+    "avg_sequential_ms": "749.0",
+    "speedup": "2.8x",
+    "time_reduction_pct": 64.7,
+    "tools_count": 6
+  },
+  "cache": {
+    "hit_rate": "42.9%",
+    "compression_rate_pct": 49.5,
+    "total_calls": 7,
+    "cache_hits": 3,
+    "raw_tokens": 5625,
+    "cached_tokens": 2841
+  },
+  "dag": {
+    "nodes": 4,
+    "levels": 3,
+    "level_detail": [
+      "Level 0: ['task_a', 'task_b']",
+      "Level 1: ['task_c']",
+      "Level 2: ['task_d']"
+    ]
+  }
+}

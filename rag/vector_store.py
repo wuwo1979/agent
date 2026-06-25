@@ -3,11 +3,11 @@ RAG 知识库模块
 基于 ChromaDB / Milvus 向量库，给 Agent 增加知识检索能力
 """
 
-import os
 import hashlib
-from typing import Any, Dict, List, Optional
-from dataclasses import dataclass, field
 import logging
+import os
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("rag")
 
@@ -371,7 +371,7 @@ class MilvusVectorStore:
     def connect(self):
         """连接 Milvus"""
         try:
-            from pymilvus import connections, Collection, FieldSchema, CollectionSchema, DataType
+            from pymilvus import Collection, CollectionSchema, DataType, FieldSchema, connections
 
             connections.connect(
                 alias="default",

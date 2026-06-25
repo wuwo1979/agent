@@ -3,11 +3,11 @@ vLLM 适配层
 本地部署开源模型，封装 OpenAI 兼容 API
 """
 
+import asyncio
+import logging
 import os
 import subprocess
-import asyncio
 from typing import Any, Dict, List, Optional
-import logging
 
 logger = logging.getLogger("vllm_adapter")
 

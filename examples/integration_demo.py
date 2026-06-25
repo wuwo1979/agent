@@ -8,9 +8,10 @@ MCP Gateway 集成示例
   2. 安装依赖: pip install httpx
 """
 
-import json
-import httpx
 import asyncio
+import json
+
+import httpx
 
 GATEWAY_URL = "http://localhost:9090/mcp"
 
