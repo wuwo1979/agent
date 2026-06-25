@@ -9,10 +9,10 @@ Design principles:
 
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import Any, AsyncIterator, Dict, List, Optional, Protocol, runtime_checkable
+from typing import Any, AsyncIterator, Dict, List, Optional
 from core.types import (
     ToolDefinition, ToolCallResult, AgentState, SearchResult,
-    Document, ModelConfig, CacheEntry, BenchmarkResult,
+    Document, CacheEntry,
 )
 
 

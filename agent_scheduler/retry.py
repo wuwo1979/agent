@@ -7,7 +7,7 @@ import asyncio
 import random
 import time
 from typing import Any, Callable, Dict, Optional, TypeVar
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 import logging
 

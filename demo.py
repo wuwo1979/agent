@@ -81,20 +81,16 @@ async def demo_codebase_health_check():
     from mcp_gateway.tools.terminal import TerminalToolProvider
     from mcp_gateway.tools.database import DatabaseToolProvider
     from performance.cache import IncrementalContextCache
-    try:
-        from agent_scheduler.graph import create_agent_graph
-        HAS_LANGGRAPH = True
-    except ImportError:
-        HAS_LANGGRAPH = False
+    from agent_scheduler.graph import create_agent_graph
 
     Printer.title("MCP Gateway + Multi-Agent: Codebase Health Check")
 
     # Problem statement
     print(f"  {Printer.BOLD}Scenario:{Printer.RESET} Developer needs to analyze a Python project")
-    print(f"  - 14 Python files across 4 modules")
-    print(f"  - Check: file sizes, TODO count, git status")
-    print(f"  - Without MCP: 5+ custom scripts, 3 tool integrations")
-    print(f"  - With MCP:    1 unified pipeline, 3 lines of config")
+    print("  - 11 Python files across 4 modules")
+    print("  - Check: file sizes, TODO count, git status")
+    print("  - Without MCP: 5+ custom scripts, 3 tool integrations")
+    print("  - With MCP:    1 unified pipeline, 3 lines of config")
     print()
 
     # Step 1: Create test files
@@ -129,7 +125,7 @@ async def demo_codebase_health_check():
             for i in range(5):
                 lines.append(f"    def method_{i}(self, data):")
                 lines.append(f"        result = data.get('key_{i}', 'default')")
-                lines.append(f"        return result")
+                lines.append("        return result")
                 lines.append("")
             if fname in todo_locations:
                 lines.append("    # TODO: implement error handling")
@@ -187,23 +183,18 @@ async def demo_codebase_health_check():
 
     # Step 4: Agent workflow
     Printer.step(4, "Running Agent pipeline (plan -> execute -> validate)...")
-    if HAS_LANGGRAPH:
-        agent = create_agent_graph(registry, use_simple_agents=True)
+    agent = create_agent_graph(registry, use_simple_agents=True)
 
-        task = f"List all Python files in {tmpdir} recursively, read the 5 files with TODOs, and get system info"
-        start = time.time()
-        result = await agent.run(user_input=task, task_id="demo_health_check")
-        elapsed = (time.time() - start) * 1000
+    task = f"List all Python files in {tmpdir} recursively, read the 5 files with TODOs, and get system info"
+    start = time.time()
+    result = await agent.run(user_input=task, task_id="demo_health_check")
+    elapsed = (time.time() - start) * 1000
 
-        Printer.ok("Agent pipeline completed", f"{elapsed:.0f}ms")
-        Printer.result("  Status", result.task_status.value)
-        Printer.result("  Subtasks generated", len(result.plan))
-        Printer.result("  Successful calls", result.successful_tool_calls)
-        Printer.result("  Failed calls", result.failed_tool_calls)
-    else:
-        Printer.info("  [SKIP] langgraph not installed. Install: pip install langgraph")
-        elapsed = 0
-        result = None
+    Printer.ok("Agent pipeline completed", f"{elapsed:.0f}ms")
+    Printer.result("  Status", result.task_status.value)
+    Printer.result("  Subtasks generated", len(result.plan))
+    Printer.result("  Successful calls", result.successful_tool_calls)
+    Printer.result("  Failed calls", result.failed_tool_calls)
     print()
 
     # Step 5: Performance metrics
@@ -237,8 +228,8 @@ async def demo_codebase_health_check():
     # Step 6: Summary
     Printer.title("Results Summary")
     rows = [
-        ["Tools registered", "14", "3 providers (fs, terminal, database)"],
-        ["Agent pipeline", f"{elapsed:.0f}ms" if elapsed else "SKIP", f"{result.successful_tool_calls if result else 0} calls, 0 failures"],
+        ["Tools registered", "11", "3 providers (fs, terminal, database)"],
+        ["Agent pipeline", f"{elapsed:.0f}ms", f"{result.successful_tool_calls} calls, 0 failures"],
         ["Cache hit rate", stats['hit_rate'], "repeated reads use cache"],
         ["Files analyzed", str(file_count), f"{total_lines} lines, 5 with TODOs"],
     ]
@@ -250,8 +241,8 @@ async def demo_codebase_health_check():
 
     return {
         "tools": total_tools,
-        "pipeline_ms": f"{elapsed:.0f}" if elapsed else "SKIP",
-        "calls": result.successful_tool_calls if result else 0,
+        "pipeline_ms": f"{elapsed:.0f}",
+        "calls": result.successful_tool_calls,
         "cache_hit_rate": stats['hit_rate'],
         "files": file_count,
     }
@@ -268,17 +259,15 @@ async def demo_parallel_showcase():
     check system info, query DB, read config, and check env vars.
     """
     from mcp_gateway.protocol import ToolRegistry
-    from mcp_gateway.tools.filesystem import FilesystemToolProvider
-    from mcp_gateway.tools.terminal import TerminalToolProvider
     from performance.parallel import ParallelScheduler, ParallelBenchmark
     from tests.benchmark import MockBenchmarkProvider
 
     Printer.title("Parallel Execution: 6-Tool Code Review Pipeline")
 
     print(f"  {Printer.BOLD}Scenario:{Printer.RESET} Code review needs 6 independent checks")
-    print(f"  - git status, list files, system info, DB query, config read, env vars")
-    print(f"  - Sequential: 6 x 200ms = 1200ms")
-    print(f"  - Parallel:   max(200ms) = 200ms")
+    print("  - git status, list files, system info, DB query, config read, env vars")
+    print("  - Sequential: 6 x 200ms = 1200ms")
+    print("  - Parallel:   max(200ms) = 200ms")
     print()
 
     registry = ToolRegistry()
@@ -349,10 +338,10 @@ async def main():
     print(f"\n{Printer.BOLD}{Printer.GREEN}{'='*Printer.W}{Printer.RESET}")
     print(f"{Printer.BOLD}{Printer.GREEN}  Project Ready for Production{Printer.RESET}")
     print(f"{Printer.BOLD}{Printer.GREEN}{'='*Printer.W}{Printer.RESET}\n")
-    print(f"  Start server:  python main.py --host 0.0.0.0 --port 9090")
-    print(f"  Run benchmarks: python main.py --benchmark")
-    print(f"  Run demo:       python demo.py")
-    print(f"  Docker:         cd docker && docker-compose up -d")
+    print("  Start server:  python main.py --host 0.0.0.0 --port 9090")
+    print("  Run benchmarks: python main.py --benchmark")
+    print("  Run demo:       python demo.py")
+    print("  Docker:         cd docker && docker-compose up -d")
     print()
 
     return results

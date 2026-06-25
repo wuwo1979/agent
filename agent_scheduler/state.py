@@ -3,10 +3,9 @@ Agent 调度层 - 状态管理
 基于 LangGraph 的状态定义、快照、断点续跑
 """
 
-from typing import Any, Dict, List, Optional, TypedDict, Annotated
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 from enum import Enum
-import json
 import os
 import time
 import pickle

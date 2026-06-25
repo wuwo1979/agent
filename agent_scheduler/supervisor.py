@@ -13,16 +13,13 @@ Based on LangGraph handoffs pattern:
 - Supports streaming output and checkpoint/resume
 """
 
-import asyncio
 import time
-import json
-from typing import Any, Dict, List, Optional, AsyncGenerator, Callable
+from typing import Any, Dict, Optional, AsyncGenerator
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
 
-from agent_scheduler.state import AgentState, SubTask, TaskStatus
-from agent_scheduler.retry import RetryManager, RetryConfig
+from agent_scheduler.state import AgentState, TaskStatus
 
 logger = logging.getLogger("agent_scheduler.supervisor")
 

@@ -8,7 +8,7 @@ enabling real-time monitoring and OpenTelemetry-compatible export.
 import time
 import json
 from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Optional
+from typing import Dict, List
 from collections import defaultdict
 
 

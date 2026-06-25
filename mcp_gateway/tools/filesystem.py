@@ -9,7 +9,6 @@ from __future__ import annotations
 import os
 import glob
 import json
-import asyncio
 from typing import Any, Dict, List
 from datetime import datetime
 
@@ -176,7 +175,7 @@ class FilesystemToolProvider(BaseToolProvider):
         is_safe = any(resolved.startswith(os.path.abspath(r)) for r in SAFE_ROOTS)
         if not is_safe:
             raise PermissionDeniedError(
-                f"read_file",
+                "read_file",
                 f"Path '{resolved}' is outside safe directories"
             )
         return resolved
@@ -220,7 +219,6 @@ class FilesystemToolProvider(BaseToolProvider):
                 else:
                     content = f.read()
 
-            file_size = os.path.getsize(full_path)
             return ToolCallResult.text_result(
                 "read_file",
                 content,

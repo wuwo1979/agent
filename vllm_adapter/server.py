@@ -5,7 +5,6 @@ vLLM 适配层
 
 import os
 import subprocess
-import json
 import asyncio
 from typing import Any, Dict, List, Optional
 import logging

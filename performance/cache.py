@@ -7,7 +7,7 @@
 import hashlib
 import json
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 from collections import OrderedDict
 from dataclasses import dataclass, field
 import logging

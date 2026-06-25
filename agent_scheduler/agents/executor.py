@@ -5,10 +5,10 @@ Agent 调度层 - 执行 Agent
 
 import asyncio
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from agent_scheduler.state import AgentState, SubTask, TaskStatus
-from agent_scheduler.retry import RetryManager, RetryConfig
+from agent_scheduler.retry import RetryManager
 from mcp_gateway.protocol import ToolRegistry, ToolCallResult
 
 import logging

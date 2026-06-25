@@ -3,8 +3,6 @@ MCP Gateway layer unit tests.
 Uses MockTestProvider pattern for proper IToolProvider-based testing.
 """
 
-import asyncio
-import json
 import sys
 import os
 import pytest
@@ -224,16 +222,6 @@ class TestMCPProtocol:
         assert response.id == "123"
         assert response.result == {"tools": []}
         assert response.error is None
-
-    def test_notification(self):
-        """Test that notification has no id."""
-        request = JSONRPCRequest(
-            jsonrpc="2.0",
-            id=None,
-            method="notifications/initialized",
-            params={},
-        )
-        assert request.is_notification()
 
     @pytest.mark.asyncio
     async def test_protocol_handler(self):

@@ -4,9 +4,8 @@ Agent 调度层 - 校验 Agent
 """
 
 import json
-from typing import Any, Dict, List, Optional
 
-from agent_scheduler.state import AgentState, SubTask, TaskStatus
+from agent_scheduler.state import AgentState, TaskStatus
 
 import logging
 

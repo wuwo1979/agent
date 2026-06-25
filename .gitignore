@@ -57,6 +57,19 @@ docker/mcp_logs/
 .env.local
 .env.*.local
 
+# Personal study files (excluded from git tracking but kept locally)
+docs/面试要点汇总.md
+docs/2.py
+docs/test.py
+docs/back.py
+docs/输入.txt
+docs/4天复习计划.md
+docs/代码模板/
+docs/华为真题/
+docs/知识点速记手册/
+docs/简答模板/
+docs/算法错题本/
+
 # OS
 .DS_Store
 Thumbs.db

@@ -5,7 +5,7 @@ Agent 调度层 - LangGraph 工作流
 
 import json
 import uuid
-from typing import Any, Dict, List, Optional, Literal
+from typing import Any, Optional
 from dataclasses import dataclass, field
 
 from langgraph.graph import StateGraph, END
@@ -15,9 +15,8 @@ from agent_scheduler.state import (
     AgentState, TaskStatus, SnapshotManager
 )
 from agent_scheduler.agents.planner import PlannerAgent, SimplePlannerAgent
-from agent_scheduler.agents.executor import ExecutorAgent, SequentialExecutor
+from agent_scheduler.agents.executor import ExecutorAgent
 from agent_scheduler.agents.validator import ValidatorAgent, SimpleValidator
-from agent_scheduler.retry import RetryManager
 
 from mcp_gateway.protocol import ToolRegistry
 
@@ -44,7 +43,7 @@ async def execution_node(state: AgentState, executor: Any) -> AgentState:
 
 async def validation_node(state: AgentState, validator: Any) -> AgentState:
     """校验节点：验证结果"""
-    logger.info(f"[Graph] Validation node")
+    logger.info("[Graph] Validation node")
     return await validator.validate(state)
 
 

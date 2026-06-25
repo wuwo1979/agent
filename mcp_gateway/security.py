@@ -2,20 +2,17 @@
 MCP Gateway - 安全层
 认证、授权、速率限制、工具权限策略
 
-参考: 
+参考:
 - MCP Auth spec: https://spec.modelcontextprotocol.io/specification/2025-03-26/basic/authorization/
 - Defense in depth: https://jacar.es/en/mcp-guia-completa-2026/
 """
 
 import time
 import hashlib
-import hmac
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 from dataclasses import dataclass, field
-from collections import defaultdict
 from enum import Enum
 import logging
-import asyncio
 
 logger = logging.getLogger("mcp_gateway.security")
 

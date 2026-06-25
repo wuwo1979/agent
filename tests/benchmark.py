@@ -7,6 +7,12 @@ Validates 5 core metrics:
 3. Dependency graph: Topological level parallel execution
 4. Context compressor: Large JSON result compression
 5. End-to-end: Complete Agent workflow (planning -> execution -> validation)
+
+Test Environment (this run):
+    Hardware: Windows 11, Python 3.11.5, CPU with 4+ cores
+    All tools are Mock (pure memory, no I/O) to eliminate disk/network jitter
+    Baselines: "serial" = await sequential; "no_cache" = cache disabled
+    Parallel benchmark uses 6 independent tools (2 fast@100ms + 2 medium@200ms + 2 slow@300ms)
 """
 
 import asyncio
@@ -14,7 +20,8 @@ import json
 import os
 import sys
 import time
-from typing import Any, Dict, List
+import platform
+from typing import Any, Dict
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -267,7 +274,7 @@ async def benchmark_dependency_graph() -> Dict[str, Any]:
     dg = DependencyGraph(dependencies)
     levels = dg.topological_levels(["task_a", "task_b", "task_c", "task_d"])
 
-    print(f"\n  Topological levels:")
+    print("\n  Topological levels:")
     for i, level in enumerate(levels):
         print(f"    Level {i}: {level}")
 
@@ -399,6 +406,17 @@ async def main():
     print("=" * 60)
     print("  MCP Gateway + Multi-Agent System - Benchmark Suite")
     print("=" * 60)
+
+    # Environment info
+    import os
+    print("\n  Environment:")
+    print(f"    OS: {platform.system()} {platform.release()}")
+    print(f"    Python: {platform.python_version()}")
+    print(f"    CPU: {os.cpu_count()} cores")
+    print(f"    Platform: {platform.machine()}")
+    print("  Baseline: all metrics compare optimized vs serial/no-cache version")
+    print("  Tools: Mock (memory-only, no I/O) to eliminate disk/network jitter")
+    print()
 
     report = {}
 

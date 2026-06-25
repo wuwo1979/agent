@@ -15,9 +15,8 @@ import json
 import logging
 import time
 import traceback
-from abc import ABC, abstractmethod
-from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Set, Tuple, Union
-from dataclasses import dataclass, field
+from abc import abstractmethod
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 from core.interfaces import IToolProvider, IToolRegistry
 from core.types import (
@@ -26,8 +25,7 @@ from core.types import (
 )
 from core.exceptions import (
     ToolNotFoundError, ToolExecutionError, ToolTimeoutError,
-    InvalidRequestError, MethodNotFoundError, ProtocolError,
-    PermissionDeniedError,
+    InvalidRequestError, MethodNotFoundError, PermissionDeniedError, ResourceNotFoundError, PromptNotFoundError,
 )
 
 logger = logging.getLogger("mcp_gateway.protocol")
@@ -92,6 +90,16 @@ class MCPProtocolHandler:
         self.register_handler("ping", self._handle_ping)
         self.register_notification("notifications/initialized", self._handle_initialized)
 
+    def register_tool_handlers(self, registry):
+        """Register tool-related handlers linked to a ToolRegistry."""
+        self._registry = registry
+        self.register_handler("tools/list", self._handle_tools_list)
+        self.register_handler("tools/call", self._handle_tools_call)
+        self.register_handler("resources/list", self._handle_resources_list)
+        self.register_handler("resources/read", self._handle_resources_read)
+        self.register_handler("prompts/list", self._handle_prompts_list)
+        self.register_handler("prompts/get", self._handle_prompts_get)
+
     def register_handler(self, method: str, handler: Callable):
         """Register a method handler."""
         self._handlers[method] = handler
@@ -139,6 +147,73 @@ class MCPProtocolHandler:
         """Handle initialized notification."""
         self._initialized = True
         logger.info("Client initialized successfully")
+
+    async def _handle_tools_list(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle tools/list request."""
+        if not hasattr(self, '_registry'):
+            return {"tools": []}
+        return {"tools": self._registry.list_tools()}
+
+    async def _handle_tools_call(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle tools/call request."""
+        if not hasattr(self, '_registry'):
+            raise MethodNotFoundError("tools/call")
+        name = params.get("name", "")
+        arguments = params.get("arguments", {})
+        result = await self._registry.call_tool(name, arguments)
+        return result.to_mcp_format()
+
+    async def _handle_resources_list(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle resources/list request."""
+        if not hasattr(self, '_registry'):
+            return {"resources": []}
+        return {"resources": self._registry.list_resources()}
+
+    async def _handle_resources_read(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle resources/read request."""
+        if not hasattr(self, '_registry'):
+            raise MethodNotFoundError("resources/read")
+        uri = params.get("uri", "")
+        # For now, return available resources
+        resources = self._registry.list_resources()
+        for r in resources:
+            if r["uri"] == uri:
+                return {
+                    "contents": [{
+                        "uri": r["uri"],
+                        "mimeType": r.get("mimeType", "text/plain"),
+                        "text": f"Resource: {r['name']}\n{r.get('description', '')}",
+                    }]
+                }
+        raise ResourceNotFoundError(uri)
+
+    async def _handle_prompts_list(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle prompts/list request."""
+        if not hasattr(self, '_registry'):
+            return {"prompts": []}
+        return {"prompts": self._registry.list_prompts()}
+
+    async def _handle_prompts_get(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle prompts/get request."""
+        if not hasattr(self, '_registry'):
+            raise MethodNotFoundError("prompts/get")
+        name = params.get("name", "")
+        arguments = params.get("arguments", {})
+        prompts = self._registry.list_prompts()
+        for p in prompts:
+            if p["name"] == name:
+                return {
+                    "description": p.get("description", ""),
+                    "messages": [{
+                        "role": "user",
+                        "content": {
+                            "type": "text",
+                            "text": f"Using prompt: {name}\n"
+                                    + "\n".join(f"{k}: {v}" for k, v in arguments.items())
+                        }
+                    }]
+                }
+        raise PromptNotFoundError(name)
 
     async def handle_request(self, request: JSONRPCRequest) -> JSONRPCResponse:
         """

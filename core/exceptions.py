@@ -111,6 +111,26 @@ class MethodNotFoundError(MCPSystemError):
         )
 
 
+class ResourceNotFoundError(MCPSystemError):
+    """Raised when a requested resource is not found."""
+    def __init__(self, uri: str):
+        super().__init__(
+            message=f"Resource not found: {uri}",
+            code="RESOURCE_NOT_FOUND",
+            details={"uri": uri},
+        )
+
+
+class PromptNotFoundError(MCPSystemError):
+    """Raised when a requested prompt is not found."""
+    def __init__(self, name: str):
+        super().__init__(
+            message=f"Prompt not found: {name}",
+            code="PROMPT_NOT_FOUND",
+            details={"prompt_name": name},
+        )
+
+
 # ============================================================
 # Security Errors
 # ============================================================

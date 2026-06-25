@@ -4,9 +4,8 @@ RAG 知识库模块
 """
 
 import os
-import json
 import hashlib
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 import logging
 

@@ -1,45 +1,38 @@
 # ============================================================
 # MCP Gateway + Multi-Agent Scheduling System
-# 轻量级本地 MCP 网关与多 Agent 调度系统
 # ============================================================
+# 说明：
+# - 仅锁定最低版本，无上界（避免 pip 在 CI 环境无法解析）
+# - 标 # optional 的模块按需安装，不影响核心功能
 
-# --- MCP Protocol ---
+# ========== 核心：MCP 网关 ==========
 mcp>=1.0.0
+fastapi>=0.100.0
+uvicorn>=0.24.0
+pydantic>=2.5.0
 
-# --- LangGraph (Agent orchestration) ---
-langgraph>=0.2.0
-langchain>=0.3.0
-langchain-core>=0.3.0
-langchain-openai>=0.2.0
+# ========== Agent 调度（optional） ==========
+langgraph>=0.1.0
+langchain>=0.1.0
+langchain-core>=0.1.0
+langchain-openai>=0.1.0
 
-# --- LLM Providers ---
-openai>=1.50.0
-ollama>=0.4.0
+# ========== LLM 适配器（optional） ==========
+openai>=1.0.0
+ollama>=0.1.0
 
-# --- Vector DB (RAG) ---
-chromadb>=0.5.0
-pymilvus>=2.4.0
+# ========== RAG 知识库（optional - 按需安装） ==========
+# chromadb>=0.5.0
 
-# --- vLLM / Local Inference ---
-vllm>=0.6.0
-fastapi>=0.115.0
-uvicorn>=0.30.0
+# ========== vLLM 本地推理（optional - 体积大） ==========
+# vllm>=0.6.0
 
-# --- Async & Performance ---
-asyncio-throttle>=1.0.0
-aiofiles>=24.0.0
-pydantic>=2.0.0
-
-# --- Database ---
-sqlite3-api>=2.0.0
+# ========== 数据库 ==========
 sqlalchemy>=2.0.0
 
-# --- Testing & Benchmark ---
-pytest>=8.0.0
-pytest-asyncio>=0.24.0
-pytest-benchmark>=4.0.0
-tiktoken>=0.7.0
+# ========== 测试与工具 ==========
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
 rich>=13.0.0
-
-# --- Docker ---
-# (docker-compose.yml 单独配置)
+tiktoken>=0.5.0
+aiofiles>=23.0.0
