@@ -4,7 +4,7 @@ build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
 name = "mcp-agent-gateway"
-version = "1.3.0"
+version = "3.0.0"
 description = "让 AI Agent 直接操控本地环境的 MCP 网关"
 readme = "README.md"
 requires-python = ">=3.11"
