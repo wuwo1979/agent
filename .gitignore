@@ -1,0 +1,78 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+.eggs/
+*.whl
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+.venv*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+*.cover
+coverage.xml
+.tox/
+.nox/
+
+# Data directories
+mcp_data/
+mcp_logs/
+snapshots/
+*.db
+*.sqlite3
+
+# Docker
+docker/mcp_data/
+docker/mcp_logs/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# PyCharm
+.idea/
+
+# Benchmark reports
+tests/benchmark_report.json
+demo_data/

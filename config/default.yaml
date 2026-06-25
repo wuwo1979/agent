@@ -1,0 +1,215 @@
+# ============================================================
+# MCP Gateway + Multi-Agent System - 全局配置
+# ============================================================
+
+# ---- 服务配置 ----
+server:
+  host: "0.0.0.0"
+  port: 9090
+  mode: "http"              # http | stdio
+  log_level: "INFO"
+  workers: 4
+
+# ---- MCP 网关配置 ----
+mcp:
+  protocol_version: "2024-11-05"
+  server_name: "MCP-Gateway"
+  server_version: "2.0.0"
+  transport: "streamable-http"  # streamable-http | sse | stdio
+  stateless: false              # 无状态模式（适合 Serverless）
+  
+  # 工具发现
+  tool_discovery:
+    auto_scan: true            # 自动扫描 tools/ 目录
+    scan_paths:
+      - "mcp_gateway/tools"
+    exclude_patterns:
+      - "__pycache__"
+      - "__init__.py"
+  
+  # 工具前缀（多服务器时避免命名冲突）
+  tool_prefix:
+    enabled: true
+    mappings:
+      filesystem: "fs"
+      terminal: "term"
+      database: "db"
+      custom: "custom"
+
+# ---- Agent 调度配置 ----
+agent:
+  mode: "supervisor"          # supervisor | pipeline | simple
+  max_parallel_tools: 5
+  max_retries: 3
+  retry_delay: 1.0           # 基础延迟（秒）
+  retry_backoff: 2.0         # 指数退避基数
+  
+  # 规划 Agent
+  planner:
+    model: "deepseek-v4"
+    temperature: 0.1
+    max_tokens: 2048
+  
+  # 执行 Agent
+  executor:
+    timeout_per_tool: 30      # 单个工具超时（秒）
+    batch_size: 5
+  
+  # 校验 Agent
+  validator:
+    model: "deepseek-v4"
+    temperature: 0.0
+    max_tokens: 1024
+    
+  # 断点续跑
+  checkpoint:
+    enabled: true
+    directory: "./snapshots"
+    keep_last: 5
+    auto_save_interval: 60    # 自动保存间隔（秒）
+
+# ---- 性能优化配置 ----
+performance:
+  cache:
+    enabled: true
+    max_entries: 1000
+    max_content_length: 8000
+    compression_threshold: 2000
+    strategy: "incremental"   # incremental | semantic | none
+  
+  parallel:
+    enabled: true
+    max_concurrency: 5
+    dependency_aware: true
+  
+  context_compression:
+    enabled: true
+    max_result_length: 2000
+    list_truncate_threshold: 10
+  
+  streaming:
+    enabled: true
+    chunk_size: 512           # 流式输出块大小
+
+# ---- 模型配置 ----
+models:
+  deepseek-v4:
+    provider: "deepseek"
+    model_name: "deepseek-chat"
+    api_base: "https://api.deepseek.com/v1"
+    api_key_env: "DEEPSEEK_API_KEY"
+    temperature: 0.7
+    max_tokens: 4096
+    top_p: 0.95
+  
+  deepseek-v4-code:
+    provider: "deepseek"
+    model_name: "deepseek-chat"
+    api_base: "https://api.deepseek.com/v1"
+    api_key_env: "DEEPSEEK_API_KEY"
+    temperature: 0.1
+    max_tokens: 8192
+  
+  ollama-qwen:
+    provider: "ollama"
+    model_name: "qwen2.5:7b"
+    api_base: "http://localhost:11434"
+    temperature: 0.7
+    max_tokens: 4096
+  
+  ollama-llama:
+    provider: "ollama"
+    model_name: "llama3.1:8b"
+    api_base: "http://localhost:11434"
+    temperature: 0.7
+    max_tokens: 4096
+  
+  vllm-local:
+    provider: "vllm"
+    model_name: "Qwen/Qwen2.5-7B-Instruct"
+    api_base: "http://localhost:8000/v1"
+    temperature: 0.7
+    max_tokens: 4096
+
+# ---- RAG 知识库配置 ----
+rag:
+  enabled: false
+  provider: "chromadb"       # chromadb | milvus
+  embedding_model: "text-embedding-3-small"
+  
+  chromadb:
+    persist_directory: "./chroma_db"
+    collection_name: "agent_knowledge"
+  
+  milvus:
+    host: "localhost"
+    port: 19530
+    collection_name: "agent_knowledge"
+    dimension: 1536
+  
+  retrieval:
+    top_k: 5
+    score_threshold: 0.7
+    max_chunk_size: 1000
+    chunk_overlap: 200
+
+# ---- 安全配置 ----
+security:
+  auth:
+    enabled: false
+    type: "api_key"          # api_key | oauth2 | none
+    api_key_header: "X-API-Key"
+    api_keys:
+      - "mcp-gateway-dev-key-change-in-production"
+  
+  rate_limit:
+    enabled: true
+    max_requests_per_minute: 60
+    burst_size: 10
+  
+  tool_policy:
+    enabled: true
+    # 工具权限策略
+    policies:
+      # 危险工具需要审批
+      dangerous_tools:
+        - "term_run_command"
+        - "db_execute"
+      # 只读工具直接放行
+      readonly_tools:
+        - "fs_read_file"
+        - "fs_list_dir"
+        - "fs_search"
+        - "db_query"
+        - "db_list_tables"
+        - "db_describe_table"
+        - "term_sysinfo"
+
+# ---- Docker 部署配置 ----
+docker:
+  image: "mcp-gateway"
+  tag: "latest"
+  ollama:
+    enabled: true
+    model: "qwen2.5:7b"
+  chromadb:
+    enabled: true
+    port: 8001
+  milvus:
+    enabled: false
+    port: 19530
+
+# ---- 监控与可观测性 ----
+observability:
+  metrics:
+    enabled: true
+    port: 9091
+  
+  tracing:
+    enabled: false
+    exporter: "console"      # console | otlp | jaeger
+  
+  health_check:
+    enabled: true
+    path: "/health"
+    interval: 30
