@@ -18,10 +18,14 @@ from core.types import ToolCallResult, ToolDefinition
 from mcp_gateway.protocol import BaseToolProvider
 
 # Safe directories (prevent path traversal attacks)
-SAFE_ROOTS = [
-    os.getcwd(),
-    os.path.expanduser("~"),
-]
+# Can be configured via MCP_FS_SAFE_ROOTS env var (semicolon-separated)
+# or SAFE_ROOTS env var (comma-separated, legacy)
+_DEFAULT_ROOTS = [os.getcwd(), os.path.expanduser("~")]
+_env_roots = os.environ.get("MCP_FS_SAFE_ROOTS") or os.environ.get("SAFE_ROOTS")
+if _env_roots:
+    SAFE_ROOTS = [os.path.abspath(p.strip()) for p in _env_roots.split(";") if p.strip()]
+else:
+    SAFE_ROOTS = _DEFAULT_ROOTS[:]
 
 
 class FilesystemToolProvider(BaseToolProvider):

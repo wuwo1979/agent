@@ -1,6 +1,31 @@
 # ============================================================
 # MCP Gateway + Multi-Agent System - 全局配置
 # ============================================================
+#
+# 配置优先级（高 → 低）:
+#   1. 环境变量 ${VAR_NAME}（在 YAML 中使用 ${VAR_NAME} 语法）
+#   2. 环境配置文件 {APP_ENV}.yaml（如 production.yaml）
+#   3. 本文件 default.yaml
+#
+# 示例：设置端口
+#   export MCP_SERVER_PORT=8080（直接替换 server.port 的值）
+#
+# 所有 ${...} 占位符会优先读取同名的环境变量，
+# 格式: ${VAR_NAME} 或 ${VAR_NAME:default_value}
+#
+# 关键环境变量速查:
+#   MCP_SERVER_PORT          - 服务端口（默认 9090）
+#   MCP_LOG_LEVEL            - 日志级别（默认 INFO）
+#   DEEPSEEK_API_KEY         - DeepSeek API 密钥
+#   MCP_CACHE_MAX_ENTRIES    - 缓存最大条目（默认 1000）
+#   MCP_CACHE_TTL            - 缓存 TTL 秒（默认 0=永不过期）
+#   MCP_MAX_CONCURRENCY      - 并行调度最大并发数（默认 5）
+#   MCP_FS_SAFE_ROOTS        - 文件沙箱根路径（分号分隔）
+#   MCP_TERMINAL_USE_WHITELIST - 终端命令白名单开关（1/true）
+#   MCP_TERMINAL_ALLOWED_COMMANDS - 终端命令白名单（分号分隔）
+#   MCP_API_KEYS             - API 密钥列表（逗号分隔）
+#   MCP_RATE_LIMIT           - 每分钟最大请求数（默认 60）
+# ============================================================
 
 # ---- 服务配置 ----
 server:

@@ -12,7 +12,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.exceptions import PermissionDeniedError, ToolExecutionError
-from core.types import ToolDefinition, ToolCallResult
+from core.types import ToolDefinition
 from mcp_gateway.api import ExternalAPIHandler
 from mcp_gateway.audit import AuditLogger
 from mcp_gateway.protocol import BaseToolProvider, ToolRegistry
@@ -20,8 +20,8 @@ from mcp_gateway.security import (
     APIKeyAuthenticator,
     AuthContext,
     AuthResult,
-    RateLimitExceededError,
     RateLimiter,
+    RateLimitExceededError,
     SecurityMiddleware,
     ToolPolicyEngine,
 )

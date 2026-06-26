@@ -76,7 +76,11 @@ async def demo_codebase_health_check():
     Scenario: Analyze a Python project for code health metrics.
     Pipeline: list files -> read sources -> analyze -> git status -> report
     """
-    from agent_scheduler.graph import create_agent_graph
+    try:
+        from mcp_gateway.agents.graph import create_agent_graph
+    except ImportError:
+        print(f"  {Printer.YELLOW}SKIP{Printer.RESET} Agent pipeline requires langgraph (pip install langgraph)")
+        return {"warning": "langgraph not installed"}
     from mcp_gateway.protocol import ToolRegistry
     from mcp_gateway.tools.database import DatabaseToolProvider
     from mcp_gateway.tools.filesystem import FilesystemToolProvider

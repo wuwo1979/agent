@@ -11,12 +11,12 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from agent_scheduler.agents.executor import ExecutorAgent
-from agent_scheduler.agents.planner import SimplePlannerAgent
-from agent_scheduler.agents.validator import SimpleValidator
-from agent_scheduler.retry import CircuitBreaker, RetryConfig, RetryManager
-from agent_scheduler.state import AgentState, SnapshotManager, SubTask, TaskStatus
 from core.types import ToolCallResult, ToolDefinition
+from mcp_gateway.agents.executor import ExecutorAgent
+from mcp_gateway.agents.planner import SimplePlannerAgent
+from mcp_gateway.agents.retry import CircuitBreaker, RetryConfig, RetryManager
+from mcp_gateway.agents.state import AgentState, SnapshotManager, SubTask, TaskStatus
+from mcp_gateway.agents.validator import SimpleValidator
 from mcp_gateway.protocol import BaseToolProvider, ToolRegistry
 from performance.cache import IncrementalContextCache
 from performance.parallel import DependencyGraph, ParallelScheduler

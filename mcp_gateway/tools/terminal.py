@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import subprocess
 from typing import Any, Dict
 
@@ -42,12 +43,13 @@ MAX_COMMAND_LENGTH = 500
 
 # ========== Optional whitelist mode ==========
 # Set to True to enable strict command whitelist.
-# When enabled, only commands matching ALLOWED_COMMANDS_PREFIXES are allowed.
-# This mode is recommended for production deployments.
-USE_COMMAND_WHITELIST = False  # Set to True in config/terminal config
+# Can be configured via MCP_TERMINAL_USE_WHITELIST env var ("1" or "true" to enable)
+# or by setting USE_COMMAND_WHITELIST = True in this file.
+USE_COMMAND_WHITELIST = os.environ.get("MCP_TERMINAL_USE_WHITELIST", "").lower() in ("1", "true", "yes")
 
 # Allowed command prefixes (used only when USE_COMMAND_WHITELIST=True)
-ALLOWED_COMMANDS_PREFIXES = [
+# Can be extended via MCP_TERMINAL_ALLOWED_COMMANDS env var (semicolon-separated)
+_ALLOWED_DEFAULTS = [
     # File operations (read-only)
     "ls", "cat ", "head ", "tail ", "wc ", "find ", "grep ", "stat ",
     "du ", "df ", "tree ", "which ", "type ",
@@ -58,9 +60,15 @@ ALLOWED_COMMANDS_PREFIXES = [
     "git status", "git log", "git diff", "git branch", "git show",
     # Directory operations
     "mkdir ", "cd ", "cp ", "mv ", "touch ",
-    # Network info
-    "ping ", "curl -s", "wget -qO", "netstat", "ss ", "ip ",
+    # Python
+    "python --version", "python3 --version", "pip list", "pip freeze",
+    "pip install ", "pip3 install ",
 ]
+_env_allowed = os.environ.get("MCP_TERMINAL_ALLOWED_COMMANDS")
+if _env_allowed:
+    ALLOWED_COMMANDS_PREFIXES = [c.strip() for c in _env_allowed.split(";") if c.strip()]
+else:
+    ALLOWED_COMMANDS_PREFIXES = _ALLOWED_DEFAULTS
 
 
 class TerminalToolProvider(BaseToolProvider):

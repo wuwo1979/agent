@@ -22,7 +22,7 @@ async def run_demo():
     """
     Run full demo showing MCP gateway + Agent scheduling capabilities.
     """
-    from agent_scheduler.graph import create_agent_graph
+    from mcp_gateway.agents.graph import create_agent_graph
     from mcp_gateway.protocol import ToolRegistry
     from mcp_gateway.tools.database import DatabaseToolProvider
     from mcp_gateway.tools.filesystem import FilesystemToolProvider
@@ -69,28 +69,33 @@ async def run_demo():
     except Exception as e:
         print(f"    Tool call failed: {e}")
 
-    # 4. Agent workflow
+    # 4. Agent workflow (requires langgraph, skip if not installed)
     print("\n[4] Running Agent workflow...")
-    cache = IncrementalContextCache()
-    agent = create_agent_graph(registry, use_simple_agents=True)
-
-    task = "Get system info and list current directory files"
-    result = await agent.run(user_input=task, task_id="demo_001")
-
-    print(f"    Task: {task}")
-    print(f"    Status: {result.task_status.value}")
-    print(f"    Subtasks: {len(result.plan)}")
-    for t in result.plan:
-        status_icon = "[OK]" if t.status.value == "completed" else "[FAIL]"
-        print(f"      {status_icon} [{t.id}] {t.description} ({t.tool_name})")
-
-    print(f"    Successful calls: {result.successful_tool_calls}")
-    print(f"    Failed calls: {result.failed_tool_calls}")
+    try:
+        from mcp_gateway.agents.graph import create_agent_graph
+        cache = IncrementalContextCache()
+        agent = create_agent_graph(registry, use_simple_agents=True)
+        task = "Get system info and list current directory files"
+        result = await agent.run(user_input=task, task_id="demo_001")
+        print(f"    Task: {task}")
+        print(f"    Status: {result.task_status.value}")
+        print(f"    Subtasks: {len(result.plan)}")
+        for t in result.plan:
+            status_icon = "[OK]" if t.status.value == "completed" else "[FAIL]"
+            print(f"      {status_icon} [{t.id}] {t.description} ({t.tool_name})")
+        print(f"    Successful calls: {result.successful_tool_calls}")
+        print(f"    Failed calls: {result.failed_tool_calls}")
+    except ImportError:
+        print("    Agent pipeline SKIP | langgraph not installed (pip install langgraph to enable)")
+    except Exception as e:
+        print(f"    Agent pipeline error: {e}")
 
     # 5. Cache stats
     print("\n[5] Cache stats:")
-    stats = cache.get_stats()
-    print(f"    Hit rate: {stats['hit_rate']}")
+    cache = IncrementalContextCache()
+    cache.set("sysinfo", {}, '{"platform":"test"}', 10)
+    stats = cache.get_stats() if hasattr(cache, 'get_stats') else {"hit_rate": 0}
+    print(f"    Hit rate: {stats.get('hit_rate', 'N/A')}")
 
     print("\n" + "=" * 60)
     print("  Demo complete!")

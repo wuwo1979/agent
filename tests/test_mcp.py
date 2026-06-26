@@ -305,10 +305,11 @@ class TestLLMToolProvider:
         provider = LLMToolProvider()
         tools = provider.list_tools()
 
-        assert len(tools) == 2
+        assert len(tools) == 3
         tool_names = {t.name for t in tools}
         assert "llm_call" in tool_names
         assert "llm_list_models" in tool_names
+        assert "llm_ping" in tool_names
 
     def test_llm_provider_in_registry(self):
         """Test LLMToolProvider works in ToolRegistry."""
@@ -319,7 +320,7 @@ class TestLLMToolProvider:
         registry.register_provider(provider)
 
         stats = registry.get_stats()
-        assert stats["tools"] == 2
+        assert stats["tools"] == 3
 
     def test_llm_call_tool_schema(self):
         """Test llm_call tool has required parameters."""
@@ -329,7 +330,7 @@ class TestLLMToolProvider:
         tools = provider.list_tools()
         llm_call = next(t for t in tools if t.name == "llm_call")
 
-        assert "model" in llm_call.inputSchema["required"]
+        assert "model" not in llm_call.inputSchema["required"]  # model is optional (auto-detect)
         assert "prompt" in llm_call.inputSchema["required"]
         assert llm_call.category == "llm"
         assert llm_call.timeout_ms == 60000

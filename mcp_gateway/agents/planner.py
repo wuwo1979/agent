@@ -7,7 +7,7 @@ import json
 import logging
 import uuid
 
-from agent_scheduler.state import AgentState, SubTask, TaskStatus
+from mcp_gateway.agents.state import AgentState, SubTask, TaskStatus
 
 logger = logging.getLogger("agent_scheduler.planner")
 

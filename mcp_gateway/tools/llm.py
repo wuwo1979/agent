@@ -12,8 +12,8 @@ LLM 工具 Provider — 对接 Ollama 本地大模型。
 from __future__ import annotations
 
 import json
-import urllib.request
 import urllib.error
+import urllib.request
 from typing import Any, Dict
 
 from core.exceptions import ToolExecutionError
@@ -43,8 +43,9 @@ class LLMToolProvider(BaseToolProvider):
                 "properties": {
                     "model": {
                         "type": "string",
-                        "description": "模型名称（如 qwen2.5:7b, llama3:8b, deepseek-r1:8b）",
-                        "default": "qwen2.5:7b",
+                        "description": "模型名称（如 qwen2.5:7b, llama3:8b, deepseek-r1:8b）。"
+                                        "留空则自动选择第一个已安装的模型。",
+                        "default": "",
                     },
                     "prompt": {
                         "type": "string",
@@ -65,7 +66,7 @@ class LLMToolProvider(BaseToolProvider):
                         "default": 1024,
                     },
                 },
-                "required": ["model", "prompt"],
+                "required": ["prompt"],
             },
             category="llm",
             tags=["ollama", "llm", "generate", "ai"],
@@ -86,6 +87,19 @@ class LLMToolProvider(BaseToolProvider):
             timeout_ms=10000,
         ))
 
+        self._register_tool(ToolDefinition(
+            name="llm_ping",
+            description="检查 Ollama 服务的连通性，返回服务状态和已安装的模型列表。",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+            },
+            category="llm",
+            tags=["ollama", "health", "ping"],
+            cacheable=False,
+            timeout_ms=5000,
+        ))
+
     # ── call_tool 分发 ──
 
     async def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
@@ -93,6 +107,8 @@ class LLMToolProvider(BaseToolProvider):
             return await self._llm_call(**arguments)
         elif tool_name == "llm_list_models":
             return await self._llm_list_models()
+        elif tool_name == "llm_ping":
+            return await self._llm_ping()
         else:
             raise ToolExecutionError(tool_name, f"Unknown tool: {tool_name}")
 
@@ -100,12 +116,25 @@ class LLMToolProvider(BaseToolProvider):
 
     async def _llm_call(
         self,
-        model: str,
-        prompt: str,
+        model: str = "",
+        prompt: str = "",
         system: str = "",
         temperature: float = 0.7,
         max_tokens: int = 1024,
     ) -> ToolCallResult:
+        # Auto-detect first available model if none specified
+        if not model:
+            model = await self._get_first_model()
+            if not model:
+                return ToolCallResult(
+                    tool_name="llm_call",
+                    content=[{
+                        "type": "text",
+                        "text": "未找到已安装的 Ollama 模型。请先执行: ollama pull qwen2.5:7b",
+                    }],
+                    is_error=True,
+                )
+
         payload = {
             "model": model,
             "prompt": prompt,
@@ -213,3 +242,53 @@ class LLMToolProvider(BaseToolProvider):
                 content=[{"type": "text", "text": f"查询失败: {e}"}],
                 is_error=True,
             )
+
+    # ── ollama_ping ──
+
+    async def _llm_ping(self) -> ToolCallResult:
+        """检查 Ollama 服务连通性"""
+        try:
+            req = urllib.request.Request(f"{self._base_url}/api/tags")
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+                models = result.get("models", [])
+                return ToolCallResult(
+                    tool_name="llm_ping",
+                    content=[{
+                        "type": "text",
+                        "text": json.dumps({
+                            "status": "ok",
+                            "ollama_url": self._base_url,
+                            "models_count": len(models),
+                            "models": [m.get("name") for m in models],
+                        }, ensure_ascii=False),
+                    }],
+                )
+        except urllib.error.URLError as e:
+            return ToolCallResult(
+                tool_name="llm_ping",
+                content=[{
+                    "type": "text",
+                    "text": json.dumps({
+                        "status": "error",
+                        "ollama_url": self._base_url,
+                        "error": str(e.reason),
+                    }),
+                }],
+                is_error=True,
+            )
+
+    # ── helpers ──
+
+    async def _get_first_model(self) -> str:
+        """获取第一个可用的 Ollama 模型名称"""
+        try:
+            req = urllib.request.Request(f"{self._base_url}/api/tags")
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+                models = result.get("models", [])
+                if models:
+                    return models[0].get("name", "")
+        except Exception:
+            pass
+        return ""

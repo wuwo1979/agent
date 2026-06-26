@@ -6,7 +6,7 @@ Agent 调度层 - 校验 Agent
 import json
 import logging
 
-from agent_scheduler.state import AgentState, TaskStatus
+from mcp_gateway.agents.state import AgentState, TaskStatus
 
 # Optional langchain imports
 try:

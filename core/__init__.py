@@ -4,7 +4,7 @@ Core module - Foundation interfaces and base classes for the MCP Gateway + Multi
 Layered Architecture:
     core/           - Interfaces, base classes, exceptions (zero dependencies)
     mcp_gateway/    - MCP protocol implementation (depends on core)
-    agent_scheduler/ - Agent orchestration (depends on core, mcp_gateway)
+    mcp_gateway/agents/ - Agent orchestration (depends on core, mcp_gateway)
     performance/    - Performance optimization (depends on core)
     rag/            - RAG knowledge base (depends on core)
     tools/          - Concrete tool implementations (depends on core)

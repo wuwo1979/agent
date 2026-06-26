@@ -2,11 +2,20 @@
 性能优化层 - 增量上下文缓存
 工具返回结果自动去重压缩，减少 Token 消耗
 目标：对比全量回传 Token 减少 35%+
+
+支持：
+- 内容哈希去重
+- LRU 淘汰
+- TTL 过期
+- 并发安全（threading.Lock）
+- 环境变量配置
 """
 
 import hashlib
 import json
 import logging
+import os
+import threading
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
@@ -24,6 +33,14 @@ class CacheEntry:
     timestamp: float = field(default_factory=time.time)
     hit_count: int = 0
     token_count: int = 0
+    ttl: Optional[float] = None  # 过期时间（秒），None 表示永不过期
+
+    @property
+    def is_expired(self) -> bool:
+        """检查是否过期"""
+        if self.ttl is None:
+            return False
+        return time.time() - self.timestamp > self.ttl
 
 
 class IncrementalContextCache:
@@ -34,20 +51,25 @@ class IncrementalContextCache:
     2. 增量压缩：只传回与上次不同的部分
     3. LRU 淘汰：限制缓存大小
     4. 语义摘要：超长结果自动压缩为摘要
+    5. TTL 过期：自动清理过期条目
     """
 
     def __init__(
         self,
-        max_entries: int = 1000,
-        max_content_length: int = 8000,
-        compression_threshold: int = 2000,
+        max_entries: int = None,
+        max_content_length: int = None,
+        compression_threshold: int = None,
+        default_ttl: Optional[float] = None,
     ):
-        self.max_entries = max_entries
-        self.max_content_length = max_content_length
-        self.compression_threshold = compression_threshold
+        # 环境变量覆盖默认值
+        self.max_entries = max_entries or int(os.environ.get("MCP_CACHE_MAX_ENTRIES", "1000"))
+        self.max_content_length = max_content_length or int(os.environ.get("MCP_CACHE_MAX_LENGTH", "8000"))
+        self.compression_threshold = compression_threshold or int(os.environ.get("MCP_CACHE_COMPRESS_THRESHOLD", "2000"))
+        self.default_ttl = default_ttl or float(os.environ.get("MCP_CACHE_TTL", "0")) or None
 
         self._cache: OrderedDict[str, CacheEntry] = OrderedDict()
         self._content_hashes: Dict[str, str] = {}
+        self._lock = threading.Lock()
 
         # 统计
         self.total_calls: int = 0
@@ -67,70 +89,97 @@ class IncrementalContextCache:
 
     def get(self, tool_name: str, arguments: Dict[str, Any]) -> Optional[Tuple[str, int]]:
         """
-        获取缓存结果
+        获取缓存结果（线程安全）
         Returns:
             (content, token_count) 或 None
         """
-        key = self._compute_key(tool_name, arguments)
-        self.total_calls += 1
+        with self._lock:
+            key = self._compute_key(tool_name, arguments)
+            self.total_calls += 1
 
-        if key in self._cache:
-            entry = self._cache[key]
-            entry.hit_count += 1
-            self.cache_hits += 1
+            if key in self._cache:
+                entry = self._cache[key]
+                # 检查 TTL 过期
+                if entry.is_expired:
+                    del self._cache[key]
+                    logger.debug(f"Cache EXPIRED: {tool_name}")
+                    return None
 
-            # 移动到末尾（LRU）
-            self._cache.move_to_end(key)
+                entry.hit_count += 1
+                self.cache_hits += 1
 
-            logger.debug(f"Cache HIT: {tool_name} (hit count: {entry.hit_count})")
-            return entry.content, entry.token_count
+                # 移动到末尾（LRU）
+                self._cache.move_to_end(key)
 
-        logger.debug(f"Cache MISS: {tool_name}")
-        return None
+                logger.debug(f"Cache HIT: {tool_name} (hit count: {entry.hit_count})")
+                return entry.content, entry.token_count
+
+            logger.debug(f"Cache MISS: {tool_name}")
+            return None
 
     def set(self, tool_name: str, arguments: Dict[str, Any],
             content: str, token_count: int = 0) -> int:
         """
-        设置缓存
+        设置缓存（线程安全）
         Returns:
             实际存储的 token 数（压缩后）
         """
-        key = self._compute_key(tool_name, arguments)
-        content_hash = self._compute_content_hash(content)
+        with self._lock:
+            key = self._compute_key(tool_name, arguments)
+            content_hash = self._compute_content_hash(content)
 
-        # 检查内容是否与之前相同
-        if content_hash in self._content_hashes:
-            # 内容完全重复，存储引用
-            existing_key = self._content_hashes[content_hash]
-            if existing_key in self._cache:
-                self._cache[key] = self._cache[existing_key]
-                self._cache.move_to_end(key)
-                self.tokens_saved += token_count
-                logger.debug(f"Content dedup: {tool_name} → saved {token_count} tokens")
-                return 0
+            # 检查内容是否与之前相同
+            if content_hash in self._content_hashes:
+                existing_key = self._content_hashes[content_hash]
+                if existing_key in self._cache:
+                    self._cache[key] = self._cache[existing_key]
+                    self._cache.move_to_end(key)
+                    self.tokens_saved += token_count
+                    logger.debug(f"Content dedup: {tool_name} → saved {token_count} tokens")
+                    return 0
 
-        # 压缩内容
-        compressed, compressed_tokens = self._compress(content)
-        saved = token_count - compressed_tokens
-        self.tokens_saved += saved
-        self.total_tokens += token_count
+            # 压缩内容
+            compressed, compressed_tokens = self._compress(content)
+            saved = token_count - compressed_tokens
+            self.tokens_saved += saved
+            self.total_tokens += token_count
 
-        entry = CacheEntry(
-            key=key,
-            content=compressed,
-            hash=content_hash,
-            token_count=compressed_tokens,
-        )
-        self._cache[key] = entry
-        self._content_hashes[content_hash] = key
+            entry = CacheEntry(
+                key=key,
+                content=compressed,
+                hash=content_hash,
+                token_count=compressed_tokens,
+                ttl=self.default_ttl,
+            )
+            self._cache[key] = entry
+            self._content_hashes[content_hash] = key
+
+            # LRU 淘汰 + TTL 过期清理
+            self._evict_if_needed()
+
+            logger.debug(f"Cached: {tool_name} | {token_count} → {compressed_tokens} tokens (saved {saved})")
+            return compressed_tokens
+
+    def _evict_if_needed(self):
+        """LRU 淘汰 + TTL 过期清理"""
+        # 先移除过期条目
+        expired_keys = [k for k, v in self._cache.items() if v.is_expired]
+        for k in expired_keys:
+            del self._cache[k]
 
         # LRU 淘汰
-        if len(self._cache) > self.max_entries:
+        while len(self._cache) > self.max_entries:
             oldest_key, _ = self._cache.popitem(last=False)
             logger.debug(f"LRU evicted: {oldest_key}")
 
-        logger.debug(f"Cached: {tool_name} | {token_count} → {compressed_tokens} tokens (saved {saved})")
-        return compressed_tokens
+    async def aget(self, tool_name: str, arguments: Dict[str, Any]) -> Optional[Tuple[str, int]]:
+        """异步版 get"""
+        return self.get(tool_name, arguments)
+
+    async def aset(self, tool_name: str, arguments: Dict[str, Any],
+                   content: str, token_count: int = 0) -> int:
+        """异步版 set"""
+        return self.set(tool_name, arguments, content, token_count)
 
     def _compress(self, content: str) -> Tuple[str, int]:
         """智能压缩内容"""

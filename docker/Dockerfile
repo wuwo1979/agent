@@ -1,21 +1,46 @@
-FROM python:3.11-slim
+# ============================================================
+# Stage 1: Build
+# ============================================================
+FROM python:3.11-slim AS builder
 
 LABEL maintainer="MCP Gateway Team"
-LABEL description="Lightweight MCP Gateway + Multi-Agent System"
+LABEL description="MCP Agent Gateway - Lightweight MCP Gateway"
+
+WORKDIR /build
+
+# Install system build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install only runtime dependencies
+COPY requirements-runtime.txt /build/requirements-runtime.txt
+RUN pip install --no-cache-dir --user -r requirements-runtime.txt
+
+# ============================================================
+# Stage 2: Runtime
+# ============================================================
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install minimal runtime system deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc g++ curl git \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy pre-built dependencies from builder
+COPY --from=builder /root/.local /root/.local
 
-# Copy project code
-COPY . /app/
+# Copy only runtime application code
+COPY main.py /app/
+COPY mcp_gateway/ /app/mcp_gateway/
+COPY core/ /app/core/
+COPY performance/ /app/performance/
+COPY config/ /app/config/
+
+# Ensure scripts in PATH
+ENV PATH=/root/.local/bin:$PATH
 
 # Expose ports
 EXPOSE 9090

@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, AsyncGenerator, Dict, Optional
 
-from agent_scheduler.state import AgentState, TaskStatus
+from mcp_gateway.agents.state import AgentState, TaskStatus
 
 logger = logging.getLogger("agent_scheduler.supervisor")
 

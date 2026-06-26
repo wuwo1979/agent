@@ -13,15 +13,42 @@
     GET  /api/v1/health           → 健康检查 + 组件状态
     GET  /api/v1/logs             → 审计日志查询
     GET  /api/v1/stats            → 调用统计
+    GET  /api/v1/tenants          → 租户列表
+
+Dify 集成配置：
+  1. 在 Dify 工作流中创建「HTTP 请求」节点
+  2. URL: http://<gateway>:9090/api/v1/tools/call
+  3. 请求头: X-API-Key: <你的 API Key>
+  4. Body (JSON):
+     {
+       "name": "sysinfo",
+       "arguments": {}
+     }
+  5. 返回格式:
+     {
+       "success": true,
+       "tool_name": "sysinfo",
+       "result": "...",
+       "duration_ms": 12.5
+     }
+
+Ollama 集成:
+  - llm_ping: 检查 Ollama 服务连通性
+  - llm_list_models: 列出已安装的模型
+  - llm_call: 调用 Ollama 模型生成文本
+
+Trae/Cursor 集成:
+  通过标准 MCP JSON-RPC 2.0 协议接入 /mcp 端点
+  python scripts/setup_mcp.py --ide trae
 """
 
 from __future__ import annotations
 
 import json
 import time
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict
 
-from mcp_gateway.audit import AuditEntry, get_audit_logger
+from mcp_gateway.audit import get_audit_logger
 from mcp_gateway.tenancy import TenancyManager, get_tenancy
 
 

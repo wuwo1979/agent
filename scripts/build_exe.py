@@ -7,7 +7,7 @@ Usage:
 Requires: pip install pyinstaller
 Output: dist/mcp-gateway.exe  (single file, ~15MB with compression)
 
-The executable bundles all core modules (mcp_gateway, performance, agent_scheduler,
+The executable bundles all core modules (mcp_gateway, performance,
 config, core) into a single .exe file with no Python dependency required.
 """
 import os
@@ -38,15 +38,14 @@ def build():
         "--hidden-import", "performance.cache",
         "--hidden-import", "performance.parallel",
         "--hidden-import", "performance.adapter",
-        "--hidden-import", "agent_scheduler",
-        "--hidden-import", "agent_scheduler.state",
-        "--hidden-import", "agent_scheduler.graph",
-        "--hidden-import", "agent_scheduler.retry",
-        "--hidden-import", "agent_scheduler.supervisor",
-        "--hidden-import", "agent_scheduler.agents",
-        "--hidden-import", "agent_scheduler.agents.planner",
-        "--hidden-import", "agent_scheduler.agents.executor",
-        "--hidden-import", "agent_scheduler.agents.validator",
+        "--hidden-import", "mcp_gateway.agents",
+        "--hidden-import", "mcp_gateway.agents.graph",
+        "--hidden-import", "mcp_gateway.agents.retry",
+        "--hidden-import", "mcp_gateway.agents.supervisor",
+        "--hidden-import", "mcp_gateway.agents.state",
+        "--hidden-import", "mcp_gateway.agents.executor",
+        "--hidden-import", "mcp_gateway.agents.planner",
+        "--hidden-import", "mcp_gateway.agents.validator",
         "--hidden-import", "config",
         "--hidden-import", "config.loader",
         "--hidden-import", "core",

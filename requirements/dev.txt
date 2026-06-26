@@ -1,0 +1,30 @@
+# ============================================================
+# MCP Gateway Development & Optional Dependencies
+# ============================================================
+# pip install -r requirements-dev.txt
+
+# ========== Testing ==========
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.0.0
+ruff>=0.1.0
+
+# ========== Agent Scheduling (optional) ==========
+langgraph>=0.1.0
+langchain>=0.1.0
+langchain-core>=0.1.0
+langchain-openai>=0.1.0
+
+# ========== LLM Adapters (optional) ==========
+openai>=1.0.0
+ollama>=0.1.0
+
+# ========== Utilities ==========
+rich>=13.0.0
+tiktoken>=0.5.0
+
+# ========== RAG (optional, on-demand) ==========
+# chromadb>=0.5.0
+
+# ========== vLLM (optional, large) ==========
+# vllm>=0.6.0

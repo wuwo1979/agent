@@ -1,10 +1,15 @@
-"""
-性能优化层 - 无依赖工具并行调度
+"""性能优化层 - 无依赖工具并行调度
 多工具场景总耗时降低 40%+
+
+支持：
+- 依赖图拓扑排序
+- 并行执行（最大并发数可配）
+- 环境变量 MCP_MAX_CONCURRENCY 配置
 """
 
 import asyncio
 import logging
+import os
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -98,9 +103,9 @@ class ParallelScheduler:
     基于依赖图自动识别无依赖工具，并行执行
     """
 
-    def __init__(self, max_concurrency: int = 5):
-        self.max_concurrency = max_concurrency
-        self._semaphore = asyncio.Semaphore(max_concurrency)
+    def __init__(self, max_concurrency: int = None):
+        self.max_concurrency = max_concurrency or int(os.environ.get("MCP_MAX_CONCURRENCY", "5"))
+        self._semaphore = asyncio.Semaphore(self.max_concurrency)
 
     async def execute_parallel(
         self,

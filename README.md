@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/python-3.11+-blue?style=flat-square&logo=python">
   <img src="https://img.shields.io/badge/version-v3.0-brightgreen?style=flat-square">
   <img src="https://img.shields.io/badge/MCP-2024--11--05-green?style=flat-square">
-  <img src="https://img.shields.io/badge/LangGraph-compatible-orange?style=flat-square">
+  <img src="https://img.shields.io/badge/LangGraph-optional-blue?style=flat-square">
   <img src="https://img.shields.io/badge/tests-105%20passing-brightgreen?style=flat-square">
   <img src="https://img.shields.io/badge/coverage-85%25%2B%20(target)-yellow?style=flat-square">
   <img src="https://img.shields.io/badge/docs-完整-brightgreen?style=flat-square">
@@ -24,8 +24,8 @@
 # 克隆
 git clone https://github.com/wuwo1979/agent.git && cd agent
 
-# 安装依赖（Python 3.11+）
-pip install -r requirements.txt
+# 安装核心依赖（Python 3.11+）
+pip install -r requirements/runtime.txt
 
 # 启动 MCP 网关（默认端口 9090）
 python main.py --port 9090
@@ -34,9 +34,10 @@ python main.py --port 9090
 curl -X POST http://localhost:9090/mcp \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":"1","method":"tools/list","params":{}}'
-```
 
-> 无需翻阅任何文档 — 启动后 Trae / Cursor 通过 MCP 配置直接接入，AI Agent 即可调用本地工具。详细的快速开始见下方。
+# 或通过 REST API 验证
+curl http://localhost:9090/api/v1/health
+```
 
 ---
 
@@ -90,10 +91,10 @@ AI Agent IDE (Trae/Cursor/Windsurf)
 ```bash
 git clone https://github.com/wuwo1979/agent.git
 cd agent
-pip install -r requirements.txt
+pip install -r requirements/runtime.txt
 
 # 验证核心功能
-python demo.py
+python main.py --demo --quick
 
 # 启动网关服务（供 Trae/Cursor 等调用）
 python main.py --port 9090
@@ -196,13 +197,13 @@ schema: |
 from mcp_gateway.server import MCPServer
 
 server = MCPServer()
-server.register_providers()  # 注册 11 个内置工具
+server.register_providers()  # 注册 16 个内置工具
 await server.start(port=9090)
 ```
 
 ---
 
-## 16 个内置工具
+## 16 个内置工具（5 个 Provider）
 
 | Provider | 工具 | 描述 | 安全约束 |
 |----------|------|------|----------|
@@ -374,7 +375,7 @@ curl "http://localhost:9090/api/v1/logs?error_only=true"
    - 工具列表：`POST http://localhost:9090/api/v1/tools/list`
    - 工具调用：`POST http://localhost:9090/api/v1/tools/call`
 4. 在 Header 中添加 `X-API-Key: your-key`
-5. Dify 将自动发现 16 个工具，可在工作流中拖拽使用
+5. Dify 将自动发现全部工具，可在工作流中拖拽使用
 
 > Dify 调用会自动记录到审计日志，可通过 `/api/v1/logs?platform=dify` 查看。
 
@@ -409,7 +410,7 @@ curl -X POST http://localhost:9090/api/v1/tools/call \
 python scripts/setup_mcp.py --ide trae
 ```
 
-Trae 通过 MCP 协议直接接入网关，可调用全部 16 个工具。详见上方「集成方式」章节。
+Trae 通过 MCP 协议直接接入网关，可调用全部工具。详见上方「集成方式」章节。
 
 ### 多租户权限隔离
 
@@ -575,57 +576,86 @@ ALLOWED_COMMANDS_PREFIXES = [
 | 模块 | 职责 | 状态 | 依赖性 |
 |------|------|------|--------|
 | `mcp_gateway/` | MCP 协议网关（工具注册、调用、JSON-RPC、安全、多租户、审计、REST API） | **✅ 核心** | 无额外依赖 |
+| `mcp_gateway/agents/` | LangGraph Agent 调度（Planner-Executor-Validator + Supervisor-Worker） | **✅ 核心** | 可选，需 `pip install langgraph` |
+| `mcp_gateway/rag/` | ChromaDB / Milvus 知识库检索 | **✅ 功能完整** | 可选，需 `chromadb` |
+| `mcp_gateway/llm/vllm_adapter/` | vLLM / Ollama 推理服务进程管理 | **✅ 功能完整** | 可选，需 `vllm` |
 | `performance/` | 缓存、并行调度、模型适配 | **✅ 核心** | 无额外依赖 |
-| `agent_scheduler/` | LangGraph Agent 调度（Supervisor-Worker） | **✅ 核心**，已实现 | 可选，需 `pip install langgraph` |
-| `vllm_adapter/` | vLLM 推理服务进程管理 | **🚧 待扩展** | 可选，需 `vllm` |
-| `rag/` | ChromaDB 知识库检索 | **🚧 待扩展** | 可选，需 `chromadb` |
 
 ### 目录结构
 
 ```
-agent/
-├── ✅ mcp_gateway/          # 【核心】MCP 协议网关
-│   ├── protocol.py          # JSON-RPC + 工具注册
-│   ├── transport.py         # HTTP/SSE 传输
-│   ├── server.py            # 生产级入口
-│   ├── security.py          # 认证 + 限流 + 权限
-│   └── tools/               # 14 个内置工具
-├── ✅ performance/          # 【核心】性能优化
-│   ├── cache.py             # 增量上下文缓存
-│   ├── parallel.py          # 并行调度 + 拓扑排序
-│   └── adapter.py           # 多模型适配
-├── ✅ agent_scheduler/      # 【核心】Agent 调度（需 pip install langgraph）
-│   ├── graph.py             # LangGraph 工作流
-│   ├── supervisor.py        # Supervisor-Worker
-│   ├── state.py             # 状态 + 文件快照
-│   └── agents/              # Planner + Executor + Validator
-├── 🚧 vllm_adapter/         # 【待扩展】vLLM 推理管理（需 vllm）
-├── 🚧 rag/                  # 【待扩展】知识库检索（需 chromadb）
-├── core/                    # 基础设施（类型、异常、接口）
-├── config/                  # 配置加载
-├── tests/                   # 测试 + 跑分
-│   ├── test_mcp.py          # MCP 核心单元测试（17 个用例）
-│   ├── test_agent.py        # Agent 调度测试（17 个用例）
-│   ├── test_integration.py  # 集成测试（71 个用例）
-│   ├── benchmark.py         # 5 项性能跑分（含环境信息）
-│   └── generate_charts.py   # 基准数据自动生成
-├── examples/                # 集成示例
-│   └── integration_demo.py
-├── scripts/                 # 工具脚本
-│   ├── setup_mcp.py         # 一键接入 IDE 配置向导
-│   └── build_exe.py         # PyInstaller 打包
-├── docker/                  # Docker 部署
-├── docs/                    # 技术文档
-│   ├── 面试问答.md           # 技术决策深度问答（自研 vs LangGraph/LangChain）
-│   ├── 架构设计.md           # 分层架构设计、多平台接入方案
-│   └── 设计决策.md           # 架构决策记录（ADR）
-├── demo.py                  # 演示脚本
-└── main.py                  # 主入口
+LLM/
+├── ✅ mcp_gateway/                # 【核心】MCP 协议网关
+│   ├── protocol.py                # JSON-RPC + 工具注册
+│   ├── transport.py               # HTTP/SSE + REST API 传输
+│   ├── server.py                  # 生产级入口
+│   ├── security.py                # 认证 + 限流 + 权限
+│   ├── tenancy.py                 # 多租户管理
+│   ├── api.py                     # REST API 层（Dify/Ollama 兼容）
+│   ├── audit.py                   # 审计日志
+│   ├── tools/                     # 18+ 内置工具（6 Provider）
+│   │   ├── filesystem.py          # 文件系统（5 tools）
+│   │   ├── terminal.py            # 终端命令（2 tools）
+│   │   ├── database.py            # 数据库操作（4 tools）
+│   │   ├── web.py                 # 网页工具（3 tools）
+│   │   └── llm.py                 # Ollama LLM（3 tools）
+│   ├── agents/                    # Agent 调度（需 langgraph）
+│   │   ├── graph.py               # LangGraph 工作流
+│   │   ├── supervisor.py          # Supervisor-Worker
+│   │   ├── state.py               # 状态 + 文件快照
+│   │   ├── retry.py               # 重试 + 熔断
+│   │   ├── executor.py            # 任务执行器
+│   │   ├── planner.py             # 任务规划器（需 langchain）
+│   │   └── validator.py           # 结果验证器（需 langchain）
+│   ├── rag/                       # 知识库检索（需 chromadb）
+│   │   ├── vector_store.py        # ChromaDB / Milvus 向量库
+│   │   └── __init__.py
+│   └── llm/                       # LLM 适配层
+│       └── vllm_adapter/          # vLLM 推理管理（需 vllm）
+│           ├── server.py          # vLLM/Ollama 进程管理
+│           └── __init__.py
+├── ✅ performance/                # 【核心】性能优化
+│   ├── cache.py                   # 增量上下文缓存（命中率 49.5%）
+│   ├── parallel.py                # 并行调度 + 拓扑排序（加速比 2.8x）
+│   └── adapter.py                 # OpenAI/Ollama/vLLM 客户端适配
+├── ✅ config/                     # 配置加载
+├── ✅ core/                       # 基础设施（类型、异常、接口）
+├── ✅ requirements/               # 依赖管理
+│   ├── runtime.txt                # 运行依赖
+│   ├── dev.txt                    # 开发依赖
+│   └── default.txt                # 全部依赖
+├── ✅ tests/                      # 测试 + 跑分
+│   ├── test_mcp.py                # MCP 核心单元测试（17 个用例）
+│   ├── test_agent.py              # Agent 调度测试（17 个用例）
+│   ├── test_integration.py        # 集成测试（71 个用例）
+│   ├── benchmark.py               # 5 项性能跑分（含环境信息）
+│   └── generate_charts.py         # 基准数据自动生成
+├── ✅ examples/                   # 集成示例
+│   ├── integration_demo.py        # MCP + REST API + Ollama 三场景
+│   └── demo_agent.py              # Agent 工作流演示
+├── ✅ scripts/                    # 工具脚本
+│   ├── setup_mcp.py               # 一键接入 IDE 配置向导
+│   └── build_exe.py               # PyInstaller 打包
+├── ✅ docker/                     # Docker 编排（含 Ollama/ChromaDB）
+├── ✅ docs/                       # 技术文档
+│   ├── 面试问答.md                 # 技术决策深度问答
+│   ├── 架构设计.md                 # 分层架构设计
+│   ├── 设计决策.md                 # ADR 架构决策记录
+│   ├── MCP协议规范与实践.md
+│   ├── A2A协议规范与实战.md
+│   ├── LangGraph实战指南.md
+│   ├── 项目架构说明.md
+│   └── 性能优化与跑分.md
+├── main.py                        # 主入口
+├── pyproject.toml                 # 项目元数据
+├── .gitignore
+├── .dockerignore
+├── .github/workflows/ci.yml       # CI 配置
+├── LICENSE
+└── README.md
 ```
 
-> **图例**：✅ = 已实现核心模块 / 🚧 = 待扩展规划模块（预留目录、无完整业务代码）
-
----
+> **图例**：✅ = 核心模块，功能完整
 
 ## 配置
 
@@ -715,7 +745,7 @@ curl -X POST http://localhost:9090/mcp \
 | `Rate limit exceeded` | 请求频率过高 | 等待 1 分钟后重试，或调大 `rate_limit` 配置 |
 | `Command blocked` | 终端黑名单拦截 | 改用白名单模式，将所需命令加入 `ALLOWED_COMMANDS_PREFIXES` |
 | 异步测试全部 SKIP | 缺少 pytest-asyncio | `pip install pytest-asyncio` |
-| `ModuleNotFoundError: langgraph` | 可选依赖未安装 | `pip install langgraph`（仅 agent_scheduler 需要） |
+| `ModuleNotFoundError: langgraph` | 可选依赖未安装 | `pip install langgraph`（仅 mcp_gateway.agents 需要） |
 
 ### 审计日志
 
@@ -741,7 +771,7 @@ LOG_LEVEL=WARNING python main.py # 仅错误和告警
 Agent 调度层支持文件快照断点续跑（`pickle` 序列化，默认 `./snapshots/` 目录，保留最近 3 个版本）：
 
 ```python
-from agent_scheduler.state import SnapshotManager
+from mcp_gateway.agents.state import SnapshotManager
 manager = SnapshotManager("./snapshots")
 manager.save(state)                          # 保存快照
 state = manager.load("task_001")            # 加载最新
@@ -794,7 +824,7 @@ langgraph>=0.1.0  # 依赖 langchain-core
 | 编排 | LangGraph（可选） |
 | 模型 | DeepSeek-V4 / OpenAI / Ollama / vLLM |
 | 向量库 | ChromaDB（可选） |
-| 部署 | Docker Compose |
+| 部署 | Docker Compose（含 Ollama + ChromaDB + Milvus） |
 
 ---
 

@@ -8,8 +8,8 @@ import logging
 import time
 from typing import Any, List, Optional
 
-from agent_scheduler.retry import RetryManager
-from agent_scheduler.state import AgentState, SubTask, TaskStatus
+from mcp_gateway.agents.retry import RetryManager
+from mcp_gateway.agents.state import AgentState, SubTask, TaskStatus
 from mcp_gateway.protocol import ToolCallResult, ToolRegistry
 
 logger = logging.getLogger("agent_scheduler.executor")

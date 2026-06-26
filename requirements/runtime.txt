@@ -1,0 +1,14 @@
+# ============================================================
+# MCP Gateway Runtime Dependencies
+# ============================================================
+# 仅包含运行 MCP 网关核心功能必需的依赖
+# 开发/测试/可选依赖见 requirements-dev.txt
+
+mcp>=1.0.0
+fastapi>=0.100.0
+uvicorn>=0.24.0
+pydantic>=2.5.0
+httpx>=0.27
+pyyaml>=6.0
+sqlalchemy>=2.0.0
+aiofiles>=23.0.0

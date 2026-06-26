@@ -12,10 +12,10 @@ from typing import Any, Optional
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
 
-from agent_scheduler.agents.executor import ExecutorAgent
-from agent_scheduler.agents.planner import PlannerAgent, SimplePlannerAgent
-from agent_scheduler.agents.validator import SimpleValidator, ValidatorAgent
-from agent_scheduler.state import AgentState, SnapshotManager, TaskStatus
+from mcp_gateway.agents.executor import ExecutorAgent
+from mcp_gateway.agents.planner import PlannerAgent, SimplePlannerAgent
+from mcp_gateway.agents.state import AgentState, SnapshotManager, TaskStatus
+from mcp_gateway.agents.validator import SimpleValidator, ValidatorAgent
 from mcp_gateway.protocol import ToolRegistry
 
 logger = logging.getLogger("agent_scheduler.graph")
@@ -201,7 +201,7 @@ class AgentGraph:
         stream: bool = False,
     ) -> AgentState:
         """Run using Supervisor-Worker pattern."""
-        from agent_scheduler.supervisor import SupervisorAgent
+        from mcp_gateway.agents.supervisor import SupervisorAgent
 
         state = AgentState(
             task_id=task_id or f"task_{uuid.uuid4().hex[:12]}",
@@ -226,7 +226,7 @@ class AgentGraph:
 
     async def run_streaming(self, user_input: str, task_id: Optional[str] = None):
         """Run with streaming status updates using Supervisor-Worker."""
-        from agent_scheduler.supervisor import SupervisorAgent
+        from mcp_gateway.agents.supervisor import SupervisorAgent
 
         state = AgentState(
             task_id=task_id or f"task_{uuid.uuid4().hex[:12]}",

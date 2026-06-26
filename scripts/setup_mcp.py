@@ -19,10 +19,8 @@ MCP 一键接入工具 — 自动为 Trae / Cursor / VS Code / Claude / Windsurf
 
 import argparse
 import json
-import os
 import platform
 import shutil
-import subprocess
 import sys
 import urllib.request
 from pathlib import Path
@@ -222,7 +220,7 @@ def add_server_to_config(
         print(ok(f"  配置已写入: {config_path}"))
         print(info(f"  服务器名: {server_name}"))
         if use_stdio:
-            print(info(f"  模式: STDIO"))
+            print(info("  模式: STDIO"))
         else:
             print(info(f"  地址: {url}"))
         return True

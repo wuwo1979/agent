@@ -356,7 +356,7 @@ async def benchmark_e2e_agent():
     print("=" * 60)
 
     try:
-        from agent_scheduler.graph import create_agent_graph
+        from mcp_gateway.agents.graph import create_agent_graph
     except ImportError:
         print("\n  [SKIP] langgraph not installed. Run: pip install langgraph")
         return {
