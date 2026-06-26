@@ -273,7 +273,7 @@ class STDIOTransport:
     """
     STDIO 传输层
     用于本地进程间通信（如 Claude Desktop / Trae IDE 集成）
-    
+
     使用同步 stdin 读取（线程池），避免 Windows ProactorEventLoop 的 pipe bug。
 
     要点：
@@ -282,10 +282,10 @@ class STDIOTransport:
     - 正确处理 MCP initialize → capabilities → initialized 握手流程
     - 异常退出时返回标准 JSON-RPC 错误响应
     """
-    
+
     # 初始化完成标记
     _initialized = False
-    
+
     def __init__(self, protocol_handler: Callable):
         self.protocol_handler = protocol_handler
 
@@ -307,7 +307,7 @@ class STDIOTransport:
     async def serve(self):
         """启动 STDIO 服务"""
         import sys
-        
+
         # 重定向所有 Python logging 到 stderr
         root_logger = logging.getLogger()
         for handler in root_logger.handlers:
@@ -324,7 +324,7 @@ class STDIOTransport:
                 '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
             ))
             mcp_logger.addHandler(stderr_handler)
-        
+
         logger.info("MCP Gateway starting in STDIO mode...")
         loop = asyncio.get_running_loop()
 
@@ -365,11 +365,11 @@ class STDIOTransport:
                 if method == "initialize":
                     client_capabilities = params.get("capabilities", {})
                     protocol_version = params.get("protocolVersion", "2025-03-26")
-                    
+
                     session = {
                         "sessionId": f"stdio-{uuid.uuid4().hex[:12]}",
                     }
-                    
+
                     # 返回 initialize result
                     self._write_jsonrpc({
                         "jsonrpc": "2.0",
@@ -395,10 +395,10 @@ class STDIOTransport:
                     },
                         },
                     })
-                    
+
                     # 发送 initialized 通知
                     self._write_notification("notifications/initialized", session)
-                    
+
                     logger.info(f"STDIO initialized: protocol={protocol_version}, capabilities={json.dumps(client_capabilities)[:200]}")
                     continue
 
@@ -487,6 +487,7 @@ class MCPTransport:
     async def http_serve(self, host: str = "0.0.0.0", port: int = 9090):
         """Start HTTP server with Streamable HTTP support + REST API."""
         try:
+            import aiohttp
             from aiohttp import web
         except ImportError:
             logger.error("aiohttp is required for HTTP mode. Install with: pip install aiohttp")

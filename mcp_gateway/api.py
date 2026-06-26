@@ -41,7 +41,7 @@ import json
 import time
 import urllib.error
 import urllib.request
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict
 
 from core.types import JSONRPCRequest, JSONRPCResponse
 

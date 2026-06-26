@@ -178,7 +178,7 @@ class FilesystemToolProvider(BaseToolProvider):
     def _resolve_path(self, path: str) -> str:
         """
         Resolve and validate a file path with strict traversal protection.
-        
+
         - 解析符号链接和 '..' 得到真实路径
         - 与白名单目录进行严格前缀匹配（带分隔符后缀）
         - 杜绝 C:\\Users\\admin 匹配 C:\\Users\\admin_hacker 这类绕过

@@ -10,7 +10,6 @@ Usage:
 import argparse
 import asyncio
 import json
-import subprocess
 import sys
 from pathlib import Path
 
@@ -190,7 +189,7 @@ async def test_stdio_mode():
         ping_resp = await client.recv()
         ping_data = json.loads(ping_resp)
         assert ping_data.get("result") == {}
-        print(f"  [OK] ping 响应正常")
+        print("  [OK] ping 响应正常")
 
         print("\n" + "=" * 60)
         print("  场景1 STDIO 模式: 全部通过!")
@@ -205,7 +204,7 @@ async def test_stdio_mode():
         try:
             stderr_data = await asyncio.wait_for(proc.stderr.read(), timeout=2)
             if stderr_data:
-                print(f"\n  --- stderr (last 3000 chars) ---")
+                print("\n  --- stderr (last 3000 chars) ---")
                 print(stderr_data.decode("utf-8", errors="replace")[-3000:])
         except Exception:
             pass
@@ -213,7 +212,7 @@ async def test_stdio_mode():
         if proc.returncode is not None:
             print(f"\n  [INFO] 子进程已退出，exit code={proc.returncode}")
         else:
-            print(f"\n  [INFO] 子进程仍在运行")
+            print("\n  [INFO] 子进程仍在运行")
         return False
 
     finally:
@@ -259,7 +258,7 @@ async def test_http_mode():
                 async with aiohttp.ClientSession() as session:
                     async with session.get(f"{base_url}/api/v1/health", timeout=2) as resp:
                         if resp.status == 200:
-                            print(f"  [OK] 服务已启动")
+                            print("  [OK] 服务已启动")
                             break
             except Exception:
                 pass
@@ -282,7 +281,7 @@ async def test_http_mode():
                 body = await resp.json()
                 # 无认证时返回 401
                 if resp.status == 401:
-                    print(f"  [OK] 未认证返回 401（安全中间件生效）")
+                    print("  [OK] 未认证返回 401（安全中间件生效）")
                 else:
                     tools = body.get("tools", [])
                     tool_names = [t["name"] for t in tools]
@@ -328,7 +327,7 @@ async def test_http_mode():
             ) as resp:
                 body = await resp.json()
                 if resp.status == 200:
-                    print(f"  [OK] list_dir 调用成功")
+                    print("  [OK] list_dir 调用成功")
                 else:
                     print(f"  [WARN] list_dir returned {resp.status}: {body}")
 
