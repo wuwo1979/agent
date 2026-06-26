@@ -293,21 +293,40 @@ class STDIOTransport:
                 if not line:
                     break
 
-                request = line.decode().strip()
-                if not request:
+                raw = line.decode().strip()
+                if not raw:
                     continue
 
-                result = await self.protocol_handler(request, {}, None)
+                # Parse JSON-RPC request
+                try:
+                    request_data = json.loads(raw)
+                except json.JSONDecodeError:
+                    error_response = json.dumps({
+                        "jsonrpc": "2.0",
+                        "error": {"code": -32700, "message": "Parse error"},
+                    })
+                    sys.stdout.write(error_response + "\n")
+                    sys.stdout.flush()
+                    continue
+
+                method = request_data.get("method", "")
+                params = request_data.get("params", {})
+                request_id = request_data.get("id", "")
+
+                result = await self.protocol_handler(method, params, None)
+
                 if isinstance(result, dict):
                     response = json.dumps({
                         "jsonrpc": "2.0",
-                        "id": result.get("id", ""),
+                        "id": request_id,
                         "result": result.get("result", result),
+                        "error": result.get("error"),
                     })
                 else:
                     response = json.dumps({
                         "jsonrpc": "2.0",
-                        "result": str(result),
+                        "id": request_id,
+                        "result": result,
                     })
 
                 sys.stdout.write(response + "\n")
@@ -334,8 +353,9 @@ class MCPTransport:
     based on server configuration.
     """
 
-    def __init__(self, protocol_handler: Callable):
+    def __init__(self, protocol_handler: Callable, api_routes: dict = None):
         self.protocol_handler = protocol_handler
+        self.api_routes = api_routes or {}
         self.session_manager = SessionManager()
         self.http_transport = StreamableHTTPTransport(
             protocol_handler, self.session_manager
@@ -344,7 +364,7 @@ class MCPTransport:
         self.stdio_transport = STDIOTransport(protocol_handler)
 
     async def http_serve(self, host: str = "0.0.0.0", port: int = 9090):
-        """Start HTTP server with Streamable HTTP support."""
+        """Start HTTP server with Streamable HTTP support + REST API."""
         try:
             from aiohttp import web
         except ImportError:
@@ -368,13 +388,48 @@ class MCPTransport:
                 content_type=result["content_type"],
             )
 
+        def _make_api_handler(handler_func):
+            """Wrap API handler to return aiohttp Response."""
+            async def _wrapper(request: web.Request) -> web.Response:
+                try:
+                    result = await handler_func(request)
+                    return web.Response(
+                        status=result.get("status", 200),
+                        text=result.get("body", ""),
+                        headers=result.get("headers", {"Content-Type": "application/json"}),
+                        content_type=result.get("headers", {}).get("Content-Type", "application/json"),
+                    )
+                except Exception as e:
+                    logger.exception(f"API handler error: {e}")
+                    return web.Response(
+                        status=500,
+                        text=f'{{"error": true, "message": "Internal server error: {e}"}}',
+                        headers={"Content-Type": "application/json"},
+                    )
+            return _wrapper
+
         app = web.Application()
+
+        # MCP JSON-RPC endpoint
         app.router.add_post("/mcp", mcp_handler)
         app.router.add_get("/mcp", mcp_handler)
+
+        # Legacy health/stats
         app.router.add_get("/health", lambda r: web.json_response({"status": "ok"}))
         app.router.add_get("/stats", lambda r: web.json_response(
             self.session_manager.active_sessions
         ))
+
+        # Register REST API routes
+        for (method, path), handler_func in self.api_routes.items():
+            wrapped = _make_api_handler(handler_func)
+            if method == "GET":
+                app.router.add_get(path, wrapped)
+            elif method == "POST":
+                app.router.add_post(path, wrapped)
+            elif method == "OPTIONS":
+                app.router.add_route("OPTIONS", path, wrapped)
+            logger.debug(f"  API route: {method} {path}")
 
         logger.info(f"MCP Gateway starting on {host}:{port}")
         runner = web.AppRunner(app)

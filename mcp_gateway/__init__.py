@@ -10,9 +10,9 @@ from core.types import (
 from mcp_gateway.protocol import (
     BaseToolProvider,
     MCPProtocolHandler,
-    SecurityMiddleware,
     ToolRegistry,
 )
+from mcp_gateway.security import SecurityMiddleware
 from mcp_gateway.transport import (
     MCPTransport,
     SessionManager,

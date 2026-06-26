@@ -10,8 +10,9 @@
   <img src="https://img.shields.io/badge/version-v3.0-brightgreen?style=flat-square">
   <img src="https://img.shields.io/badge/MCP-2024--11--05-green?style=flat-square">
   <img src="https://img.shields.io/badge/LangGraph-compatible-orange?style=flat-square">
-  <img src="https://img.shields.io/badge/tests-30%20passing-brightgreen?style=flat-square">
+  <img src="https://img.shields.io/badge/tests-105%20passing-brightgreen?style=flat-square">
   <img src="https://img.shields.io/badge/coverage-85%25%2B%20(target)-yellow?style=flat-square">
+  <img src="https://img.shields.io/badge/docs-完整-brightgreen?style=flat-square">
   <img src="https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square">
 </p>
 
@@ -64,13 +65,20 @@ AI Agent IDE (Trae/Cursor/Windsurf)
 │  │ filesystem│ │terminal│ │database│ │
 │  │ (5 tools)│ │(2 tools)││(4 tools)││
 │  └──────────┘ └────────┘ └───────┘ │
+│  ┌──────────┐ ┌──────────┐         │
+│  │   web    │ │   llm    │         │
+│  │ (3 tools)│ │ (2 tools)│         │
+│  └──────────┘ └──────────┘         │
+│  ┌───────────────────────────────┐  │
+│  │ REST API 层：Dify · Trae · Ollama │
+│  └───────────────────────────────┘  │
 │  ┌───────────────────────────────┐  │
 │  │ 性能层：缓存 49.5% · 并行 2.8x │  │
 │  └───────────────────────────────┘  │
 └─────────────────────────────────────┘
         │
         ▼
-   本地文件系统 / 终端命令 / SQLite 数据库
+   本地文件系统 / 终端 / SQLite / Ollama 大模型
 ```
 
 **简单说**：把 MCP 网关架在 AI Agent 和本地工具之间，Agent 通过标准接口调用工具，网关负责安全管控+性能优化。
@@ -98,7 +106,39 @@ python main.py --benchmark
 
 ## 集成方式
 
-### 方式 1：Trae / Cursor 直接接入
+### 方式 1（推荐）：一键接入任何 IDE
+
+```bash
+# 交互式向导 — 自动检测已安装的 IDE，生成配置
+python scripts/setup_mcp.py
+
+# 或指定目标 IDE
+python scripts/setup_mcp.py --ide trae    # Trae IDE
+python scripts/setup_mcp.py --ide cursor  # Cursor IDE
+python scripts/setup_mcp.py --ide vscode  # VS Code + Claude Code
+python scripts/setup_mcp.py --ide claude  # Claude Desktop
+python scripts/setup_mcp.py --ide windsurf # Windsurf (Codeium)
+
+# 同时生成全部 IDE 配置
+python scripts/setup_mcp.py --ide all
+
+# 仅查看 JSON 片段（不写入文件）
+python scripts/setup_mcp.py --ide trae --json-only
+
+# 测试 MCP 连通性
+python scripts/setup_mcp.py --test
+```
+
+向导会自动：
+1. 检测系统中已安装的 IDE
+2. 询问连接模式（HTTP / STDIO）
+3. 生成正确的 MCP JSON 配置
+4. 写入对应 IDE 的配置文件
+5. 测试连通性，列出可用工具
+
+> 支持 **Trae** / **Cursor** / **VS Code** / **Claude Desktop** / **Windsurf** 五大 IDE 的 MCP 配置自动写入。
+
+### 方式 2：手动配置 Trae / Cursor
 
 在 Trae 或 Cursor 的 MCP 配置中添加：
 
@@ -115,7 +155,7 @@ python main.py --benchmark
 
 配置后，AI Agent 就能直接操作本地文件、执行命令、查询数据库。
 
-### 方式 2：任何 MCP 客户端
+### 方式 3：任何 MCP 客户端
 
 ```bash
 # 使用 curl 模拟 MCP 调用
@@ -162,7 +202,7 @@ await server.start(port=9090)
 
 ---
 
-## 11 个内置工具
+## 16 个内置工具
 
 | Provider | 工具 | 描述 | 安全约束 |
 |----------|------|------|----------|
@@ -177,6 +217,11 @@ await server.start(port=9090)
 | | `execute` | 写操作 | 参数化执行防注入 |
 | | `list_tables` | 列表 | 只读 |
 | | `describe_table` | 表结构 | 只读 |
+| **web** (3) | `web_fetch` | 抓取网页纯文本（自动去 HTML 标签） | 仅 HTTP/HTTPS，15s 超时 |
+| | `web_api` | 调用 REST API（GET/POST） | 同上 |
+| | `json_query` | JSON 查询（类 jq 路径语法） | 纯内存操作，无副作用 |
+| **llm** (2) | `llm_call` | 调用本地 Ollama 大模型生成文本 | 需本地 Ollama 运行中 |
+| | `llm_list_models` | 列出已安装的 Ollama 模型 | 只读 |
 
 ---
 
@@ -198,7 +243,7 @@ await server.start(port=9090)
 // 请求 → POST /mcp
 {"jsonrpc":"2.0","id":"1","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"my-client","version":"1.0"}}}
 // 响应 ←
-{"jsonrpc":"2.0","id":"1","result":{"protocolVersion":"2024-11-05","serverInfo":{"name":"mcp-gateway","version":"1.3"},"capabilities":{"tools":{},"resources":{},"prompts":{}}}}
+{"jsonrpc":"2.0","id":"1","result":{"protocolVersion":"2024-11-05","serverInfo":{"name":"mcp-gateway","version":"3.0"},"capabilities":{"tools":{},"resources":{},"prompts":{}}}}
 
 // 初始化后发送通知（无响应）
 {"jsonrpc":"2.0","id":null,"method":"notifications/initialized","params":{}}
@@ -263,6 +308,144 @@ await server.start(port=9090)
 
 ---
 
+## REST API（Dify / Trae / Ollama 通用）
+
+除了 MCP JSON-RPC 协议，网关还提供标准 REST API，方便任何 HTTP 客户端直接调用。
+
+### 端点总览
+
+| 端点 | 方法 | 描述 | 认证 |
+|------|------|------|------|
+| `/api/v1/tools/list` | GET/POST | 列出所有工具（Dify 兼容格式） | 可选（X-API-Key） |
+| `/api/v1/tools/call` | POST | 调用指定工具 | 需 API Key |
+| `/api/v1/health` | GET | 健康检查 + 组件状态 | 无需认证 |
+| `/api/v1/logs` | GET | 审计日志查询（支持过滤） | 无需认证 |
+| `/api/v1/stats` | GET | 调用统计（按平台/工具） | 无需认证 |
+| `/api/v1/tenants` | GET | 多租户列表（含权限配置） | 无需认证 |
+
+### 工具列表
+
+```bash
+curl -X POST http://localhost:9090/api/v1/tools/list \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key"
+
+# 返回 Dify 兼容格式
+# {"tools": [{"name": "sysinfo", "description": "...", "parameters": [...]}, ...], "count": 16}
+```
+
+### 工具调用
+
+```bash
+curl -X POST http://localhost:9090/api/v1/tools/call \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{"name": "sysinfo", "arguments": {}}'
+
+# 返回
+# {"success": true, "tool_name": "sysinfo", "result": "{...}", "duration_ms": 12.5}
+```
+
+### 审计日志
+
+```bash
+# 查询所有日志
+curl http://localhost:9090/api/v1/logs
+
+# 按平台过滤
+curl "http://localhost:9090/api/v1/logs?platform=dify&limit=20"
+
+# 按工具过滤
+curl "http://localhost:9090/api/v1/logs?tool=sysinfo"
+
+# 仅查看错误
+curl "http://localhost:9090/api/v1/logs?error_only=true"
+```
+
+---
+
+## 平台对接指南
+
+### Dify 自定义工具网关
+
+1. 启动网关：`python main.py --port 9090`
+2. 在 Dify 工作流中添加「自定义工具」节点
+3. 配置 API 端点：
+   - 工具列表：`POST http://localhost:9090/api/v1/tools/list`
+   - 工具调用：`POST http://localhost:9090/api/v1/tools/call`
+4. 在 Header 中添加 `X-API-Key: your-key`
+5. Dify 将自动发现 16 个工具，可在工作流中拖拽使用
+
+> Dify 调用会自动记录到审计日志，可通过 `/api/v1/logs?platform=dify` 查看。
+
+### Ollama 本地大模型工具中台
+
+```bash
+# 前提：确保 Ollama 已安装并运行
+ollama serve
+
+# 下载模型（如未安装）
+ollama pull qwen2.5:7b
+
+# 启动网关后，Agent 即可调用 llm_call / llm_list_models 工具
+python main.py --port 9090
+```
+
+通过网关，AI Agent 可以：
+- `llm_call`：调用本地模型生成文本（无需 API Key，完全离线）
+- `llm_list_models`：查看已安装模型列表
+
+```bash
+# 测试 LLM 调用
+curl -X POST http://localhost:9090/api/v1/tools/call \
+  -H "Content-Type: application/json" \
+  -d '{"name": "llm_call", "arguments": {"model": "qwen2.5:7b", "prompt": "解释什么是 MCP 协议"}}'
+```
+
+### Trae MCP 代理层
+
+```bash
+# 一键配置
+python scripts/setup_mcp.py --ide trae
+```
+
+Trae 通过 MCP 协议直接接入网关，可调用全部 16 个工具。详见上方「集成方式」章节。
+
+### 多租户权限隔离
+
+每个 API Key 绑定一个租户 (Tenant)，拥有独立的文件白名单和工具策略。
+
+```bash
+# 查看所有租户
+curl http://localhost:9090/api/v1/tenants
+
+# 返回示例
+# {
+#   "tenants": [
+#     {"tenant_id": "admin", "label": "管理员", "allowed_tools": []},
+#     {"tenant_id": "dify_default", "label": "Dify默认租户", "allowed_tools": ["sysinfo", "read_file", ...]},
+#     {"tenant_id": "ollama_local", "label": "Ollama本地工具", "allowed_tools": ["llm_call", "llm_list_models", ...]}
+#   ]
+# }
+```
+
+**默认租户即开即用**：admin（全部权限）、dify_default（文件/Web 工具）、ollama_local（LLM 工具）。
+
+```python
+# 自定义租户（代码中添加）
+from mcp_gateway.tenancy import get_tenancy
+
+tenancy = get_tenancy()
+tenancy.add_tenant(
+    tenant_id="my_app",
+    api_keys=["my-app-key"],
+    file_whitelist=["/project/myapp/"],
+    allowed_tools={"sysinfo", "read_file", "list_dir", "web_fetch"},
+)
+```
+
+---
+
 ## 性能指标
 
 > ### 🔍 统一前置约束
@@ -319,69 +502,56 @@ gantt
 
 ## 测试覆盖
 
-> 当前 **30 个注册测试用例**（18 个同步 + 12 个异步）。CI 在每次 push 自动执行 `pytest --cov=`，输出 XML 覆盖率报告并上传 Codecov。
->
-> **CI 环境**：ubuntu-latest · Python 3.11 / 3.12 · `pytest-cov`  
-> **本地运行**：`pip install pytest-cov` 后即可使用 `--cov` 参数。  
-> **覆盖率报告**：`pytest --cov=. --cov-report=html` → `htmlcov/index.html`（浏览器打开）
+> 当前 **105 个测试用例**（17 个 MCP 核心 + 17 个 Agent 调度 + 71 个集成测试）。覆盖安全、多租户、API、审计、边界条件、异常路径。
 
-### 核心模块覆盖率目标（CI 实测门禁）
+### 测试分类
 
-| 模块 | 状态 | 覆盖内容 | CI 门禁(目标) | 说明 |
-|------|------|----------|---------------|------|
-| `mcp_gateway/protocol.py` | ✅ **实现** | JSON-RPC 解析/响应/通知识别 | ≥85% | 核心协议层，30 用例覆盖大部分路径 |
-| `mcp_gateway/security.py` | ✅ **实现** | 认证/限流/熔断/权限 | ≥80% | 安全中间件，测试含熔断器+权限拦截 |
-| `mcp_gateway/tools/*.py` | ✅ **实现** | Provider 注册/注销/调用 | ≥75% | 工具层含 I/O 模拟，覆盖率受异步限制 |
-| `performance/cache.py` | ✅ **实现** | 缓存命中/未命中/参数差异化 | ≥90% | 纯逻辑无副作用，覆盖率期望最高 |
-| `performance/parallel.py` | ✅ **实现** | 依赖图构建/拓扑排序 | ≥85% | 调度逻辑独立，无需外部依赖 |
-| `agent_scheduler/state.py` | ✅ **实现** | 序列化/快照 | ≥80% | 状态管理，含快照读写测试 |
-| `core/interfaces.py` | 🔲 **待补** | 基类接口 | ≥70% | 抽象基类为主，覆盖率目标较低 |
+| 测试文件 | 用例数 | 覆盖范围 |
+|----------|--------|----------|
+| `tests/test_mcp.py` | 17 | 工具注册、协议编解码、MCP 协议处理 |
+| `tests/test_agent.py` | 17 | Agent 状态、重试/熔断、缓存、并行调度 |
+| `tests/test_integration.py` | 71 | 安全认证、速率限制、多租户、API 接口、审计日志、边界条件、异常路径、性能基准 |
 
-> 覆盖率数据源自 GitHub Actions CI 流水线。每次 push 自动执行 `python -m pytest tests/ -v --tb=short --cov=. --cov-report=xml --cov-report=term-missing`，结果上传 [Codecov](https://about.codecov.io/)。  
-> 本地可运行 `pytest --cov=. --cov-report=html` 后在 `htmlcov/index.html` 查看完整报告。
+### 核心模块覆盖
 
-### 测试范围明细
-
-| 测试范围 | 覆盖模块 | 测试项 |
-|----------|----------|--------|
-| 工具注册 | `mcp_gateway/registry.py` | 注册/注销 provider、工具列表、前缀隔离 |
-| 协议编解码 | `mcp_gateway/protocol.py` | JSON-RPC 请求解析、响应格式化、通知识别 |
-| 缓存 | `performance/cache.py` | 缓存命中/未命中、参数差异化识别、统计 |
-| 并行调度 | `performance/parallel.py` | DAG 依赖图构建、拓扑排序 |
-| 状态管理 | `agent_scheduler/state.py` | 状态创建/消息/错误、序列化、快照管理 |
-| 安全检查 | `mcp_gateway/security.py` | 熔断器、权限拦截 |
-| 管道验证 | `agent_scheduler/pipeline.py` | 验证器、规划器(基础) |
+| 模块 | 覆盖内容 |
+|------|----------|
+| `mcp_gateway/security.py` | API Key 认证、令牌桶限流、工具权限策略、安全中间件 |
+| `mcp_gateway/tenancy.py` | 租户注册/移除、API Key 分组、文件白名单、工具权限隔离 |
+| `mcp_gateway/audit.py` | 审计日志记录、环形缓冲区、多维度查询、统计 |
+| `mcp_gateway/api.py` | Dify 兼容 REST API、工具列表/调用、健康检查 |
+| `mcp_gateway/protocol.py` | JSON-RPC 解析/响应、工具注册/调用 |
+| `performance/cache.py` | LRU 缓存命中/未命中、内容去重 |
+| `performance/parallel.py` | 依赖图构建、拓扑排序、并行执行 |
 
 运行测试：
 
 ```bash
-# 全部测试 + 覆盖率（推荐）
+# 全部测试
 pytest
 
-# 仅跑单元测试（跳过异步）
-pytest -k "not asyncio"
+# 特定模块
+pytest tests/test_integration.py -v
 
 # 生成 HTML 覆盖率报告
-pytest --cov-report=html
-# 打开 htmlcov/index.html 浏览
+pytest --cov=. --cov-report=html
 ```
-
-> **CI 说明**：GitHub Actions 在每次 push 自动执行 `pytest --cov=. --cov-report=xml --cov-report=term-missing`，结果上传 Codecov。
->
-> **本地环境**：`pip install pytest-cov` 后即可使用 `--cov` 参数，无需额外配置。
 
 ---
 
 ## 安全设计
 
-### 4 层安全防护
+### 多层安全防护
 
-| 层级 | 措施 | 配置方式 |
-|------|------|----------|
-| **认证** | API Key 验证（X-API-Key header） | `config.yaml` 配置 |
-| **限流** | 令牌桶 60 req/min, burst=10 | `config.yaml` 配置 |
-| **终端** | 23 条破坏性命令黑名单 + 交互命令拦截 + 可选白名单模式 | `terminal.py` 常量 |
-| **文件系统** | 路径隔离（SAFE_ROOTS）+ 路径穿越防护 | `filesystem.py` 常量 |
+| 层级 | 模块 | 措施 |
+|------|------|------|
+| **认证** | `security.py` | API Key 验证（X-API-Key header），SHA-256 哈希存储 |
+| **限流** | `security.py` | 令牌桶算法，60 req/min，burst=10 |
+| **权限** | `security.py` | 工具权限策略引擎，危险工具拦截，只读工具放行 |
+| **多租户** | `tenancy.py` | API Key 分组隔离，独立文件白名单，工具权限控制 |
+| **审计** | `audit.py` | 环形缓冲区日志，多维度查询（平台/工具/调用方/结果） |
+| **终端** | `tools/terminal.py` | 23 条破坏性命令黑名单 + 交互命令拦截 + 可选白名单模式 |
+| **文件系统** | `tools/filesystem.py` | 路径隔离（SAFE_ROOTS）+ 路径穿越防护 |
 
 ### 白名单模式（推荐生产用）
 
@@ -404,8 +574,8 @@ ALLOWED_COMMANDS_PREFIXES = [
 
 | 模块 | 职责 | 状态 | 依赖性 |
 |------|------|------|--------|
-| `mcp_gateway/` | MCP 协议网关（工具注册、调用、JSON-RPC） | **✅ 核心**，已实现 | 无额外依赖 |
-| `performance/` | 缓存、并行调度、模型适配 | **✅ 核心**，已实现 | 无额外依赖 |
+| `mcp_gateway/` | MCP 协议网关（工具注册、调用、JSON-RPC、安全、多租户、审计、REST API） | **✅ 核心** | 无额外依赖 |
+| `performance/` | 缓存、并行调度、模型适配 | **✅ 核心** | 无额外依赖 |
 | `agent_scheduler/` | LangGraph Agent 调度（Supervisor-Worker） | **✅ 核心**，已实现 | 可选，需 `pip install langgraph` |
 | `vllm_adapter/` | vLLM 推理服务进程管理 | **🚧 待扩展** | 可选，需 `vllm` |
 | `rag/` | ChromaDB 知识库检索 | **🚧 待扩展** | 可选，需 `chromadb` |
@@ -419,7 +589,7 @@ agent/
 │   ├── transport.py         # HTTP/SSE 传输
 │   ├── server.py            # 生产级入口
 │   ├── security.py          # 认证 + 限流 + 权限
-│   └── tools/               # 11 个内置工具
+│   └── tools/               # 14 个内置工具
 ├── ✅ performance/          # 【核心】性能优化
 │   ├── cache.py             # 增量上下文缓存
 │   ├── parallel.py          # 并行调度 + 拓扑排序
@@ -434,13 +604,21 @@ agent/
 ├── core/                    # 基础设施（类型、异常、接口）
 ├── config/                  # 配置加载
 ├── tests/                   # 测试 + 跑分
-│   ├── test_mcp.py          # 核心模块单元测试（30 个用例）
-│   ├── test_agent.py        # Agent 调度测试
+│   ├── test_mcp.py          # MCP 核心单元测试（17 个用例）
+│   ├── test_agent.py        # Agent 调度测试（17 个用例）
+│   ├── test_integration.py  # 集成测试（71 个用例）
 │   ├── benchmark.py         # 5 项性能跑分（含环境信息）
 │   └── generate_charts.py   # 基准数据自动生成
 ├── examples/                # 集成示例
 │   └── integration_demo.py
+├── scripts/                 # 工具脚本
+│   ├── setup_mcp.py         # 一键接入 IDE 配置向导
+│   └── build_exe.py         # PyInstaller 打包
 ├── docker/                  # Docker 部署
+├── docs/                    # 技术文档
+│   ├── 面试问答.md           # 技术决策深度问答（自研 vs LangGraph/LangChain）
+│   ├── 架构设计.md           # 分层架构设计、多平台接入方案
+│   └── 设计决策.md           # 架构决策记录（ADR）
 ├── demo.py                  # 演示脚本
 └── main.py                  # 主入口
 ```
@@ -617,6 +795,18 @@ langgraph>=0.1.0  # 依赖 langchain-core
 | 模型 | DeepSeek-V4 / OpenAI / Ollama / vLLM |
 | 向量库 | ChromaDB（可选） |
 | 部署 | Docker Compose |
+
+---
+
+## 技术文档
+
+详细技术文档见 `docs/` 目录：
+
+| 文档 | 内容 |
+|------|------|
+| [面试问答](docs/面试问答.md) | 技术决策深度问答：为什么自研多 Agent 调度而非 LangGraph？为什么自写 LRU 缓存而非 LangChain Memory？AI Infra 架构定位 |
+| [架构设计](docs/架构设计.md) | 分层架构图、核心模块职责、Dify/Trae/Ollama 多平台接入方案、安全与性能优化设计 |
+| [设计决策](docs/设计决策.md) | 架构决策记录（ADR）：JSON-RPC 2.0 协议选型、Agent 自研方案、缓存策略、HTTP 框架选型 |
 
 ---
 

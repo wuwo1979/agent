@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 
+from core.exceptions import PermissionDeniedError
+
 logger = logging.getLogger("mcp_gateway.security")
 
 
@@ -205,6 +207,48 @@ class SecurityMiddleware:
         self.authenticator = authenticator
         self.rate_limiter = rate_limiter
         self.policy_engine = policy_engine
+
+    def configure(self, config: Optional[Dict[str, Any]] = None):
+        """从配置字典初始化安全组件。"""
+        if not config:
+            return
+
+        auth_cfg = config.get("auth", {})
+        if auth_cfg.get("enabled"):
+            keys = auth_cfg.get("api_keys", [])
+            self.authenticator = APIKeyAuthenticator(
+                valid_keys=keys,
+                header_name=auth_cfg.get("header_name", "X-API-Key"),
+            )
+
+        rate_cfg = config.get("rate_limit", {})
+        if rate_cfg.get("enabled"):
+            self.rate_limiter = RateLimiter(
+                max_requests=rate_cfg.get("max_requests_per_minute", 60),
+                burst_size=rate_cfg.get("burst_size", 10),
+            )
+
+        policy_cfg = config.get("tool_policy", {})
+        if policy_cfg.get("enabled"):
+            self.policy_engine = ToolPolicyEngine(
+                policies={
+                    "dangerous_tools": policy_cfg.get("dangerous_tools", []),
+                    "readonly_tools": policy_cfg.get("readonly_tools", []),
+                }
+            )
+
+    def check_tool_permission(self, tool_name: str) -> None:
+        """
+        检查工具调用权限。
+        如果权限不足，抛出 PermissionDeniedError。
+        """
+        if self.policy_engine:
+            auth_context = AuthContext()
+            result = self.policy_engine.check_tool(tool_name, auth_context)
+            if result == AuthResult.DENY:
+                raise PermissionDeniedError(tool_name, "Policy denied")
+            if result == AuthResult.REQUIRE_ELEVATION:
+                raise PermissionDeniedError(tool_name, "Elevation required")
 
     async def check_request(
         self,

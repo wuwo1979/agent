@@ -4,11 +4,15 @@ MCP Gateway Server - Production-grade entry point.
 Architecture:
     MCPServer
     ├── ToolRegistry (plugin-based, IToolProvider pattern)
-    │   ├── FilesystemToolProvider
-    │   ├── TerminalToolProvider
-    │   └── DatabaseToolProvider
+    │   ├── FilesystemToolProvider  (5 tools)
+    │   ├── TerminalToolProvider    (2 tools)
+    │   ├── DatabaseToolProvider    (4 tools)
+    │   ├── WebToolProvider         (3 tools)
+    │   └── LLMToolProvider         (2 tools)
+    ├── ExternalAPIHandler (REST API for Dify/Trae/Ollama)
     ├── MCPProtocolHandler (JSON-RPC 2.0)
     ├── SecurityMiddleware (auth + rate limit + policy)
+    ├── AuditLogger (unified call logging)
     └── MCPTransport (HTTP/SSE/STDIO)
 """
 
@@ -23,14 +27,17 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config.loader import ConfigLoader
 from core.types import JSONRPCRequest
+from mcp_gateway.api import ExternalAPIHandler, create_api_routes
 from mcp_gateway.protocol import (
     MCPProtocolHandler,
-    SecurityMiddleware,
     ToolRegistry,
 )
+from mcp_gateway.security import SecurityMiddleware
 from mcp_gateway.tools.database import DatabaseToolProvider
 from mcp_gateway.tools.filesystem import FilesystemToolProvider
+from mcp_gateway.tools.llm import LLMToolProvider
 from mcp_gateway.tools.terminal import TerminalToolProvider
+from mcp_gateway.tools.web import WebToolProvider
 from mcp_gateway.transport import MCPTransport
 
 logging.basicConfig(
@@ -62,6 +69,7 @@ class MCPServer:
         self.registry = ToolRegistry()
         self.security = SecurityMiddleware()
         self.config = self._load_config(config_path)
+        self.api_handler: Optional[ExternalAPIHandler] = None
 
     def _load_config(self, config_path: Optional[str] = None):
         """Load configuration from YAML file."""
@@ -87,6 +95,8 @@ class MCPServer:
             FilesystemToolProvider(),
             TerminalToolProvider(),
             DatabaseToolProvider(),
+            WebToolProvider(),
+            LLMToolProvider(),
         ]
 
         for provider in providers:
@@ -170,6 +180,14 @@ class MCPServer:
         # Configure security
         self.configure_security()
 
+        # Create external API handler (Dify / Trae / Ollama REST API)
+        self.api_handler = ExternalAPIHandler(
+            registry=self.registry,
+            security=self.security,
+            platform="api",
+        )
+        api_routes = create_api_routes(self.api_handler)
+
         # Create transport with protocol handler bridge
         async def protocol_handler(method: str, params: dict, session) -> dict:
             """Bridge between transport layer and protocol handler."""
@@ -182,15 +200,22 @@ class MCPServer:
             response = await self.protocol.handle_request(request)
             if response is None:
                 return {}
-            return {"result": response.result} if response.error is None else {"error": response.error}
+            if response.error is not None:
+                return {"error": response.error}
+            return response.result
 
-        transport = MCPTransport(protocol_handler)
+        transport = MCPTransport(protocol_handler, api_routes=api_routes)
 
         if mode == "stdio":
             logger.info("Starting MCP Gateway in STDIO mode...")
             await transport.stdio_serve()
         else:
             logger.info(f"Starting MCP Gateway in HTTP mode on {host}:{port}")
+            logger.info(f"  MCP endpoint:    http://{host}:{port}/mcp")
+            logger.info(f"  REST API:        http://{host}:{port}/api/v1/")
+            logger.info(f"  Health:          http://{host}:{port}/api/v1/health")
+            logger.info(f"  Audit Logs:      http://{host}:{port}/api/v1/logs")
+            logger.info(f"  Tenants:         http://{host}:{port}/api/v1/tenants")
             await transport.http_serve(host, port)
 
 

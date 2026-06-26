@@ -26,7 +26,9 @@ async def run_demo():
     from mcp_gateway.protocol import ToolRegistry
     from mcp_gateway.tools.database import DatabaseToolProvider
     from mcp_gateway.tools.filesystem import FilesystemToolProvider
+    from mcp_gateway.tools.llm import LLMToolProvider
     from mcp_gateway.tools.terminal import TerminalToolProvider
+    from mcp_gateway.tools.web import WebToolProvider
     from performance.cache import IncrementalContextCache
 
     print("=" * 60)
@@ -41,6 +43,8 @@ async def run_demo():
         FilesystemToolProvider(),
         TerminalToolProvider(),
         DatabaseToolProvider(),
+        WebToolProvider(),
+        LLMToolProvider(),
     ]
     for provider in providers:
         registry.register_provider(provider)

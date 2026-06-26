@@ -292,5 +292,59 @@ class TestMCPProtocol:
         assert len(received) == 1
 
 
+# ============================================================
+# LLM Tool Provider Tests
+# ============================================================
+
+class TestLLMToolProvider:
+
+    def test_llm_provider_registration(self):
+        """Test LLMToolProvider registers and lists tools."""
+        from mcp_gateway.tools.llm import LLMToolProvider
+
+        provider = LLMToolProvider()
+        tools = provider.list_tools()
+
+        assert len(tools) == 2
+        tool_names = {t.name for t in tools}
+        assert "llm_call" in tool_names
+        assert "llm_list_models" in tool_names
+
+    def test_llm_provider_in_registry(self):
+        """Test LLMToolProvider works in ToolRegistry."""
+        from mcp_gateway.tools.llm import LLMToolProvider
+
+        registry = ToolRegistry()
+        provider = LLMToolProvider()
+        registry.register_provider(provider)
+
+        stats = registry.get_stats()
+        assert stats["tools"] == 2
+
+    def test_llm_call_tool_schema(self):
+        """Test llm_call tool has required parameters."""
+        from mcp_gateway.tools.llm import LLMToolProvider
+
+        provider = LLMToolProvider()
+        tools = provider.list_tools()
+        llm_call = next(t for t in tools if t.name == "llm_call")
+
+        assert "model" in llm_call.inputSchema["required"]
+        assert "prompt" in llm_call.inputSchema["required"]
+        assert llm_call.category == "llm"
+        assert llm_call.timeout_ms == 60000
+
+    def test_llm_list_models_tool_schema(self):
+        """Test llm_list_models tool is cacheable."""
+        from mcp_gateway.tools.llm import LLMToolProvider
+
+        provider = LLMToolProvider()
+        tools = provider.list_tools()
+        llm_list = next(t for t in tools if t.name == "llm_list_models")
+
+        assert llm_list.cacheable is True
+        assert llm_list.category == "llm"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
