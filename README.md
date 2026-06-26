@@ -10,6 +10,9 @@
   <img src="https://img.shields.io/badge/MCP-2024--11--05-green?style=flat-square">
   <img src="https://img.shields.io/badge/tests-105%20passing-brightgreen?style=flat-square">
   <img src="https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square">
+  <img src="https://img.shields.io/badge/Trae-Ready-blue?style=flat-square">
+  <img src="https://img.shields.io/badge/Dify-Ready-orange?style=flat-square">
+  <img src="https://img.shields.io/badge/Ollama-Ready-purple?style=flat-square">
 </p>
 
 ---
@@ -52,6 +55,19 @@ AI Agent (Trae/Dify/Cursor)
         ▼
   文件系统 / 终端 / 数据库 / Ollama
 ```
+
+---
+
+## 生态适配
+
+| 平台 | 方式 | 支持情况 |
+|------|------|----------|
+| **Trae IDE** | STDIO (MCP) | 标准 MCP 配置，可调全部 18+ 工具 |
+| **Cursor** | STDIO / HTTP (MCP) | 同上，支持 setup_mcp.py 一键配置 |
+| **VS Code** | STDIO / HTTP (MCP) | 通过 MCP 插件接入 |
+| **Dify** | REST API | HTTP 自定义工具节点，自动发现工具列表 |
+| **Ollama** | REST API | 内置 llm_call / llm_ping / llm_list_models |
+| **curl / HTTP 客户端** | REST / MCP | 任意语言直接调用 |
 
 ---
 
@@ -139,7 +155,8 @@ ruff check . --ignore=E501  # 代码风格
 
 | 文档 | 内容 |
 |------|------|
-| [Trae 接入指南](docs/Trae接入指南.md) | Trae IDE MCP 配置步骤 |
+| [Trae 接入指南](docs/Trae接入指南.md) | Trae IDE MCP 配置步骤 + STDIO 配置模板 |
+| [Dify 接入指南](docs/Dify平台自定义工具接入指南.md) | Dify 自定义工具节点配置 + 调试步骤 |
 | [架构设计](docs/架构设计.md) | 分层架构、多平台接入 |
 | [设计决策](docs/设计决策.md) | 技术选型决策记录 |
 | [MCP 协议规范](docs/MCP协议规范与实践.md) | MCP 协议详解 |

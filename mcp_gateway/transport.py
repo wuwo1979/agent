@@ -164,7 +164,8 @@ class StreamableHTTPTransport:
             )
         except Exception as e:
             logger.exception(f"Handler error for {method_name}")
-            return self._error_response(request_id, -32000, str(e), response_headers)
+            # JSON-RPC 2.0: -32603 = Internal error (标准错误码)
+            return self._error_response(request_id, -32603, str(e), response_headers)
 
     def _success_response(
         self, request_id: Any, result: Any,
@@ -260,7 +261,7 @@ class SSETransport:
             error_data = json.dumps({
                 "jsonrpc": "2.0",
                 "id": request_id,
-                "error": {"code": -32000, "message": str(e)},
+                "error": {"code": -32603, "message": str(e)},
             })
             yield f"event: error\ndata: {error_data}\n\n"
 
@@ -271,29 +272,78 @@ class SSETransport:
 class STDIOTransport:
     """
     STDIO 传输层
-    用于本地进程间通信（如 Claude Desktop 集成）
-    """
+    用于本地进程间通信（如 Claude Desktop / Trae IDE 集成）
+    
+    使用同步 stdin 读取（线程池），避免 Windows ProactorEventLoop 的 pipe bug。
 
+    要点：
+    - stdout 只输出纯 JSON-RPC 消息（禁止任何调试/日志输出）
+    - 所有日志输出强制走 stderr
+    - 正确处理 MCP initialize → capabilities → initialized 握手流程
+    - 异常退出时返回标准 JSON-RPC 错误响应
+    """
+    
+    # 初始化完成标记
+    _initialized = False
+    
     def __init__(self, protocol_handler: Callable):
         self.protocol_handler = protocol_handler
+
+    def _write_jsonrpc(self, data: Dict[str, Any]):
+        """向 stdout 写入 JSON-RPC 响应（唯一允许的 stdout 输出）。"""
+        import sys
+        line = json.dumps(data, ensure_ascii=False, default=str)
+        sys.stdout.write(line + "\n")
+        sys.stdout.flush()
+
+    def _write_notification(self, method: str, params: Dict[str, Any] = None):
+        """写入 JSON-RPC 通知（无 id）。"""
+        self._write_jsonrpc({
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params or {},
+        })
 
     async def serve(self):
         """启动 STDIO 服务"""
         import sys
-
+        
+        # 重定向所有 Python logging 到 stderr
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers:
+            if hasattr(handler, 'stream') and handler.stream is sys.stdout:
+                handler.stream = sys.stderr
+        # 确保 mcp_gateway 日志走 stderr
+        mcp_logger = logging.getLogger("mcp_gateway")
+        for handler in mcp_logger.handlers:
+            if hasattr(handler, 'stream') and handler.stream is sys.stdout:
+                handler.stream = sys.stderr
+        if not mcp_logger.handlers:
+            stderr_handler = logging.StreamHandler(sys.stderr)
+            stderr_handler.setFormatter(logging.Formatter(
+                '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+            ))
+            mcp_logger.addHandler(stderr_handler)
+        
         logger.info("MCP Gateway starting in STDIO mode...")
-        loop = asyncio.get_event_loop()
-        reader = asyncio.StreamReader()
-        protocol = asyncio.StreamReaderProtocol(reader)
-        await loop.connect_read_pipe(lambda: protocol, sys.stdin)
+        loop = asyncio.get_running_loop()
+
+        def _read_line() -> Optional[str]:
+            """Read a line from stdin (runs in thread executor)."""
+            try:
+                line = sys.stdin.readline()
+                if not line:
+                    return None
+                return line.strip()
+            except (EOFError, OSError):
+                return None
 
         while True:
             try:
-                line = await reader.readline()
-                if not line:
+                raw = await loop.run_in_executor(None, _read_line)
+                if raw is None:
+                    logger.info("STDIO stdin closed, shutting down")
                     break
-
-                raw = line.decode().strip()
                 if not raw:
                     continue
 
@@ -301,44 +351,115 @@ class STDIOTransport:
                 try:
                     request_data = json.loads(raw)
                 except json.JSONDecodeError:
-                    error_response = json.dumps({
+                    self._write_jsonrpc({
                         "jsonrpc": "2.0",
                         "error": {"code": -32700, "message": "Parse error"},
                     })
-                    sys.stdout.write(error_response + "\n")
-                    sys.stdout.flush()
                     continue
 
                 method = request_data.get("method", "")
                 params = request_data.get("params", {})
-                request_id = request_data.get("id", "")
+                request_id = request_data.get("id")
 
-                result = await self.protocol_handler(method, params, None)
-
-                if isinstance(result, dict):
-                    response = json.dumps({
+                # ── 处理 initialize 握手 ─────────────────────
+                if method == "initialize":
+                    client_capabilities = params.get("capabilities", {})
+                    protocol_version = params.get("protocolVersion", "2025-03-26")
+                    
+                    session = {
+                        "sessionId": f"stdio-{uuid.uuid4().hex[:12]}",
+                    }
+                    
+                    # 返回 initialize result
+                    self._write_jsonrpc({
                         "jsonrpc": "2.0",
                         "id": request_id,
-                        "result": result.get("result", result),
-                        "error": result.get("error"),
+                        "result": {
+                            "protocolVersion": protocol_version,
+                            "capabilities": {
+                                "tools": {
+                                    "listChanged": True,
+                                },
+                                "resources": {
+                                    "listChanged": True,
+                                    "subscribe": True,
+                                },
+                                "prompts": {
+                                    "listChanged": True,
+                                },
+                                "logging": {},
+                            },
+                            "serverInfo": {
+                        "name": "mcp-tool-gateway",
+                        "version": "2.0.0",
+                    },
+                        },
                     })
-                else:
-                    response = json.dumps({
+                    
+                    # 发送 initialized 通知
+                    self._write_notification("notifications/initialized", session)
+                    
+                    logger.info(f"STDIO initialized: protocol={protocol_version}, capabilities={json.dumps(client_capabilities)[:200]}")
+                    continue
+
+                # ── 处理 ping ─────────────────────────────────
+                if method == "ping":
+                    self._write_jsonrpc({
                         "jsonrpc": "2.0",
                         "id": request_id,
-                        "result": result,
+                        "result": {},
+                    })
+                    continue
+
+                # ── 处理其他请求 ─────────────────────────────
+                try:
+                    result = await self.protocol_handler(method, params, None)
+
+                    if isinstance(result, dict):
+                        response = {
+                            "jsonrpc": "2.0",
+                            "id": request_id,
+                        }
+                        if "error" in result and result["error"]:
+                            response["error"] = result["error"]
+                        else:
+                            response["result"] = result.get("result", result)
+                    else:
+                        response = {
+                            "jsonrpc": "2.0",
+                            "id": request_id,
+                            "result": result,
+                        }
+
+                    self._write_jsonrpc(response)
+
+                except Exception as e:
+                    logger.exception(f"Handler error for {method}")
+                    self._write_jsonrpc({
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "error": {"code": -32603, "message": str(e)},
                     })
 
-                sys.stdout.write(response + "\n")
-                sys.stdout.flush()
-
+            except (EOFError, BrokenPipeError, OSError) as e:
+                logger.error(f"STDIO I/O error: {e}")
+                break
             except Exception as e:
-                error_response = json.dumps({
-                    "jsonrpc": "2.0",
-                    "error": {"code": -32000, "message": str(e)},
-                })
-                sys.stdout.write(error_response + "\n")
-                sys.stdout.flush()
+                logger.exception(f"STDIO fatal error: {e}")
+                # 尝试发送最后一个 JSON-RPC 错误响应
+                try:
+                    self._write_jsonrpc({
+                        "jsonrpc": "2.0",
+                        "error": {
+                            "code": -32603,
+                            "message": f"Internal error: {e}",
+                        },
+                    })
+                except Exception:
+                    pass
+                break
+
+        logger.info("STDIO transport stopped")
 
 
 # ============================================================
@@ -385,7 +506,6 @@ class MCPTransport:
                 status=result["status"],
                 text=result["body"],
                 headers=result["headers"],
-                content_type=result["content_type"],
             )
 
         def _make_api_handler(handler_func):
@@ -393,11 +513,40 @@ class MCPTransport:
             async def _wrapper(request: web.Request) -> web.Response:
                 try:
                     result = await handler_func(request)
+
+                    # ── SSE 流式响应 ────────────────────────────
+                    if result.get("_stream"):
+                        stream_url = result["_stream_url"]
+                        stream_body = result.get("_stream_body", "")
+                        resp_headers = result.get("headers", {})
+
+                        # 使用 aiohttp 客户端从 Ollama 流式读取
+                        async with aiohttp.ClientSession() as session:
+                            async with session.post(
+                                stream_url,
+                                data=stream_body.encode("utf-8"),
+                                headers={"Content-Type": "application/json"},
+                                timeout=aiohttp.ClientTimeout(total=600),
+                            ) as ollama_resp:
+                                stream_resp = web.StreamResponse(
+                                    status=200,
+                                    headers=resp_headers,
+                                )
+                                await stream_resp.prepare(request)
+
+                                # 逐行转发 SSE 事件
+                                async for line_bytes in ollama_resp.content:
+                                    stream_resp.write(line_bytes)
+                                    await stream_resp.drain()
+
+                                return stream_resp
+
+                    # ── 普通 JSON 响应 ──────────────────────────
+                    resp_headers = result.get("headers", {"Content-Type": "application/json"})
                     return web.Response(
                         status=result.get("status", 200),
                         text=result.get("body", ""),
-                        headers=result.get("headers", {"Content-Type": "application/json"}),
-                        content_type=result.get("headers", {}).get("Content-Type", "application/json"),
+                        headers=resp_headers,
                     )
                 except Exception as e:
                     logger.exception(f"API handler error: {e}")
@@ -430,6 +579,18 @@ class MCPTransport:
             elif method == "OPTIONS":
                 app.router.add_route("OPTIONS", path, wrapped)
             logger.debug(f"  API route: {method} {path}")
+
+        # Register Ollama API proxy routes
+        from mcp_gateway.api import create_ollama_proxy_routes
+        ollama_routes = create_ollama_proxy_routes()
+        for (method, path), handler_func in ollama_routes.items():
+            wrapped = _make_api_handler(handler_func)
+            if method == "*":
+                # Catch-all method for Ollama proxy endpoints
+                app.router.add_route("*", path, wrapped)
+            else:
+                app.router.add_route(method, path, wrapped)
+            logger.info(f"  Ollama proxy: {method} {path}")
 
         logger.info(f"MCP Gateway starting on {host}:{port}")
         runner = web.AppRunner(app)

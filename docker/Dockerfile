@@ -3,8 +3,8 @@
 # ============================================================
 FROM python:3.11-slim AS builder
 
-LABEL maintainer="MCP Gateway Team"
-LABEL description="MCP Agent Gateway - Lightweight MCP Gateway"
+LABEL maintainer="MCP Tool Gateway Team"
+LABEL description="MCP 本地工具网关 - HTTP + STDIO 双模，支持 Dify / Trae / Ollama 全链路"
 
 WORKDIR /build
 

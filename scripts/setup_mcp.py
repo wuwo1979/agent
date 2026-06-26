@@ -309,7 +309,7 @@ def interactive_wizard():
     _ensure_encoding()
     print()
     print(color("╔══════════════════════════════════════════════╗", BOLD))
-    print(color("║   MCP Agent Gateway — 一键接入向导           ║", BOLD))
+    print(color("║   MCP 本地工具网关 — 一键接入向导          ║", BOLD))
     print(color("║   为 Trae / Cursor / VS Code / Claude 配置    ║", BOLD))
     print(color("╚══════════════════════════════════════════════╝", BOLD))
     print()
@@ -418,7 +418,7 @@ def interactive_wizard():
 def main():
     _ensure_encoding()
     parser = argparse.ArgumentParser(
-        description="MCP Agent Gateway — 一键接入工具",
+        description="MCP 本地工具网关 — 一键接入工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:

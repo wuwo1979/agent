@@ -1,44 +1,37 @@
 """
-外部 REST API 层 — 为 Dify / Trae / Ollama / 任何 HTTP 客户端提供统一接口。
+外部 REST 适配器层 — 为 Dify 等 HTTP 客户端提供 REST-to-MCP-JSON-RPC 桥接。
 
-设计原则：
-- 与现有 MCP JSON-RPC 协议完全解耦，互不影响
-- 所有端点复用现有 ToolRegistry 和 SecurityMiddleware
-- 自动记录审计日志到 AuditLogger
-- CORS 全开（开发友好）+ API Key 鉴权
+架构设计（v2.0.0）：
+    此模块是「纯适配器」，不包含任何工具执行逻辑。
+    所有工具操作通过 JSON-RPC 委托给 MCPProtocolHandler.handle_request()。
+    MCPProtocolHandler 是系统唯一的工具执行入口。
+
+职责边界：
+    ┌─ ExternalAPIHandler ──────────────────────────────────────┐
+    │  工具相关: /api/v1/tools/list, /api/v1/tools/call        │
+    │    → 组装 JSON-RPC 请求 → protocol_handler.handle_request() │
+    │    → 将 JSON-RPC 响应包装为 Dify 友好的 REST 格式        │
+    │  运维相关: /api/v1/health, /api/v1/logs, /api/v1/stats   │
+    │    → 直接从协议内核取数，不走 JSON-RPC（非 MCP 概念）    │
+    │  Ollama 代理: /api/v1/ollama/proxy/*                     │
+    │    → 纯 HTTP 转发，与 MCP 协议无关                      │
+    └──────────────────────────────────────────────────────────┘
 
 端点：
-    POST /api/v1/tools/list       → 列出所有工具（Dify 兼容格式）
-    POST /api/v1/tools/call       → 调用指定工具
-    GET  /api/v1/health           → 健康检查 + 组件状态
-    GET  /api/v1/logs             → 审计日志查询
-    GET  /api/v1/stats            → 调用统计
-    GET  /api/v1/tenants          → 租户列表
+    POST /api/v1/tools/list       → REST-to-MCP 桥（JSON-RPC → Dify 格式）
+    POST /api/v1/tools/call       → REST-to-MCP 桥（JSON-RPC → REST 格式）
+    GET  /api/v1/health           → 原生 REST（协议内核统计）
+    GET  /api/v1/logs             → 原生 REST（审计日志查询）
+    GET  /api/v1/stats            → 原生 REST（指标统计）
+    GET  /api/v1/tenants          → 原生 REST（租户列表）
+    /*   /api/v1/ollama/proxy/*   → 纯 HTTP 转发
 
-Dify 集成配置：
-  1. 在 Dify 工作流中创建「HTTP 请求」节点
-  2. URL: http://<gateway>:9090/api/v1/tools/call
-  3. 请求头: X-API-Key: <你的 API Key>
-  4. Body (JSON):
-     {
-       "name": "sysinfo",
-       "arguments": {}
-     }
-  5. 返回格式:
-     {
-       "success": true,
-       "tool_name": "sysinfo",
-       "result": "...",
-       "duration_ms": 12.5
-     }
-
-Ollama 集成:
-  - llm_ping: 检查 Ollama 服务连通性
-  - llm_list_models: 列出已安装的模型
-  - llm_call: 调用 Ollama 模型生成文本
+Dify 集成配置:
+  http://host.docker.internal:9090/api/v1/tools/call  (X-API-Key 头)
+  http://host.docker.internal:9090/api/v1/ollama/proxy (模型供应商)
 
 Trae/Cursor 集成:
-  通过标准 MCP JSON-RPC 2.0 协议接入 /mcp 端点
+  通过标准 MCP STDIO 协议接入，不走此 REST 层
   python scripts/setup_mcp.py --ide trae
 """
 
@@ -46,10 +39,11 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Any, Callable, Dict
+import urllib.error
+import urllib.request
+from typing import Any, Callable, Dict, Optional
 
-from mcp_gateway.audit import get_audit_logger
-from mcp_gateway.tenancy import TenancyManager, get_tenancy
+from core.types import JSONRPCRequest, JSONRPCResponse
 
 
 def _cors_headers() -> Dict[str, str]:
@@ -62,89 +56,104 @@ def _cors_headers() -> Dict[str, str]:
     }
 
 
-def _json_response(data: Any, status: int = 200) -> Dict[str, Any]:
-    """构建 JSON 响应。"""
-    return {
-        "status": status,
-        "headers": {**_cors_headers(), "Content-Type": "application/json"},
-        "body": json.dumps(data, ensure_ascii=False, default=str),
-    }
-
-
-def _error_response(message: str, status: int = 400) -> Dict[str, Any]:
-    """构建错误响应。"""
-    return _json_response({"error": True, "message": message}, status)
-
-
 class ExternalAPIHandler:
     """
-    外部 REST API 处理器。
+    REST 适配器 — 将 HTTP REST 请求转为 MCP JSON-RPC 协议。
 
-    为 Dify / Trae / Ollama 等平台提供与 MCP 协议无关的 HTTP 接口。
-    集成多租户权限隔离：每个 API Key 对应一个租户，拥有独立的文件白名单和工具策略。
+    不包含任何工具执行逻辑，所有工具操作委托给 protocol_handler。
+    鉴权、多租户过滤在适配层完成（这些是 REST API 的职责，非 MCP 协议概念）。
 
     用法:
         handler = ExternalAPIHandler(
-            registry=server.registry,
-            security=server.security,
+            protocol_handler=server.protocol,  # MCPProtocolHandler
+            tenancy=tenancy_manager,
             platform="dify",
         )
-        result = await handler.handle_tools_list()
-        result = await handler.handle_tools_call({"name": "sysinfo", "arguments": {}})
+        # tools/list 和 tools/call 内部走 JSON-RPC
+        result = await handler.handle_tools_list(headers)
+        result = await handler.handle_tools_call(body, headers)
     """
 
     def __init__(
         self,
-        registry,            # ToolRegistry
-        security,            # SecurityMiddleware
+        protocol_handler,  # MCPProtocolHandler
         platform: str = "api",
     ):
-        self.registry = registry
-        self.security = security
+        self.protocol = protocol_handler
         self.platform = platform
-        self.audit = get_audit_logger()
-        self.tenancy: TenancyManager = get_tenancy()
 
     def _auth(self, headers: Dict[str, str]) -> tuple[bool, str, str]:
         """
         多租户 API Key 鉴权。
         返回 (通过, 调用方标识, tenant_id)。
         """
+        from mcp_gateway.tenancy import get_tenancy
+        tenancy = get_tenancy()
         api_key = headers.get("X-API-Key", headers.get("x-api-key", ""))
-
         if not api_key:
             return False, "anonymous", ""
-
-        auth_context = self.tenancy.authenticate(headers)
+        auth_context = tenancy.authenticate(headers)
         if auth_context.authenticated:
             caller = f"key_{api_key[:8]}" if len(api_key) >= 8 else api_key
             tenant_id = auth_context.metadata.get("tenant_id", "")
             return True, caller, tenant_id
         return False, "anonymous", ""
 
-    # ── tools/list ─────────────────────────────────────────────────
+    # ── 通用响应封装 ──────────────────────────────────────────────
+
+    def _rest_response(self, data: Any, status: int = 200) -> Dict[str, Any]:
+        return {
+            "status": status,
+            "headers": {**_cors_headers(), "Content-Type": "application/json"},
+            "body": json.dumps(data, ensure_ascii=False, default=str),
+        }
+
+    def _rest_error(self, message: str, status: int = 400) -> Dict[str, Any]:
+        return self._rest_response({"error": True, "message": message}, status)
+
+    def _jsonrpc_to_rest(self, rpc_resp: JSONRPCResponse) -> Dict[str, Any]:
+        """将 JSON-RPC 响应转为 REST 格式。"""
+        if rpc_resp.error:
+            return self._rest_error(
+                rpc_resp.error.get("message", "Unknown error"),
+                _jsonrpc_code_to_http(rpc_resp.error.get("code", -32603)),
+            )
+        return self._rest_response(rpc_resp.result)
+
+    # ── tools/list — REST → JSON-RPC → Dify 格式 ────────────────
 
     async def handle_tools_list(self, headers: Dict[str, str]) -> Dict[str, Any]:
         """
         GET/POST /api/v1/tools/list
 
-        返回 Dify 兼容格式的工具列表。
-        根据租户权限过滤工具列表（仅返回该租户有权使用的工具）。
+        流程：REST 请求 → JSON-RPC {"method":"tools/list"} → MCPProtocolHandler
+              → JSON-RPC 响应 → Dify 兼容格式 (扁平参数列表)
         """
         authenticated, _, tenant_id = self._auth(headers)
         if not authenticated:
-            return _error_response("Unauthorized: invalid or missing X-API-Key", 401)
+            return self._rest_error("Unauthorized: invalid or missing X-API-Key", 401)
 
-        all_tools = self.registry.list_tools()
-        tenant = self.tenancy.get_tenant(tenant_id)
+        # 通过协议内核获取工具列表
+        req = JSONRPCRequest(id="api-tools-list", method="tools/list", params={})
+        resp = await self.protocol.handle_request(req)
 
-        # 根据租户权限过滤工具
+        if resp.error:
+            return self._jsonrpc_to_rest(resp)
+
+        all_tools = resp.result.get("tools", [])
+
+        # 多租户过滤（仅 REST 层关心）
+        if tenant_id:
+            from mcp_gateway.tenancy import get_tenancy
+            tenancy = get_tenancy()
+            tenant = tenancy.get_tenant(tenant_id)
+        else:
+            tenant = None
+
         dify_tools = []
         for tool in all_tools:
             tool_name = tool.get("name", "")
-
-            # 如果租户有工具白名单，过滤
-            if tenant and tenant.allowed_tools:
+            if tenant and getattr(tenant, 'allowed_tools', None):
                 if tool_name not in tenant.allowed_tools:
                     continue
 
@@ -164,138 +173,95 @@ class ExternalAPIHandler:
                 "parameters": params,
             })
 
-        return _json_response({
+        return self._rest_response({
             "tools": dify_tools,
             "count": len(dify_tools),
             "tenant_id": tenant_id,
             "platform": self.platform,
         })
 
-    # ── tools/call ─────────────────────────────────────────────────
+    # ── tools/call — REST → JSON-RPC → 执行 → REST ─────────────
 
     async def handle_tools_call(self, body: dict, headers: Dict[str, str]) -> Dict[str, Any]:
         """
         POST /api/v1/tools/call
 
-        请求体：
-        {
-            "name": "sysinfo",
-            "arguments": {}
-        }
+        流程：REST 请求 → JSON-RPC {"method":"tools/call","params":{...}}
+              → MCPProtocolHandler.handle_request() → 中间件管道 → 工具执行
+              → JSON-RPC 响应 → REST 格式
 
-        返回：
-        {
-            "success": true,
-            "tool_name": "sysinfo",
-            "result": "...",
-            "duration_ms": 12.5
-        }
+        完全复用协议内核的：安全校验、超时、错误码标准化、可观测性埋点。
         """
         authenticated, caller, tenant_id = self._auth(headers)
         if not authenticated:
-            return _error_response("Unauthorized: invalid or missing X-API-Key", 401)
+            return self._rest_error("Unauthorized: invalid or missing X-API-Key", 401)
 
         tool_name = body.get("name", "")
         arguments = body.get("arguments", {})
-
         if not tool_name:
-            return _error_response("Missing required field: 'name'")
+            return self._rest_error("Missing required field: 'name'")
 
-        # 多租户工具权限检查
+        # 多租户权限检查（REST 层职责）
         if tenant_id:
+            from mcp_gateway.tenancy import get_tenancy
             from mcp_gateway.security import AuthResult
-            access_result = self.tenancy.check_tool_access(tenant_id, tool_name)
+            tenancy = get_tenancy()
+            access_result = tenancy.check_tool_access(tenant_id, tool_name)
             if access_result == AuthResult.DENY:
-                await self.audit.record(
-                    tool_name=tool_name,
-                    arguments=arguments,
-                    platform=self.platform,
-                    caller=caller,
-                    is_error=True,
-                    permission="deny",
-                )
-                return _error_response(f"Permission denied: tenant '{tenant_id}' not allowed to use '{tool_name}'", 403)
+                return self._rest_error(
+                    f"Permission denied: tenant '{tenant_id}' not allowed to use '{tool_name}'", 403)
 
-        # 安全检查
-        try:
-            self.security.check_tool_permission(tool_name)
-        except Exception as e:
-            await self.audit.record(
-                tool_name=tool_name,
-                arguments=arguments,
-                platform=self.platform,
-                caller=caller,
-                is_error=True,
-                permission="deny",
-            )
-            return _error_response(f"Permission denied: {e}", 403)
-
-        # 执行工具
+        # 通过协议内核执行工具调用
         start = time.perf_counter()
-        try:
-            result = await self.registry.call_tool(tool_name, arguments)
-            duration_ms = (time.perf_counter() - start) * 1000
+        req = JSONRPCRequest(
+            id="api-tools-call",
+            method="tools/call",
+            params={"name": tool_name, "arguments": arguments},
+        )
+        resp = await self.protocol.handle_request(req)
 
-            # 提取文本结果
-            text_result = ""
-            if result.content:
-                for item in result.content:
-                    if item.get("type") == "text":
-                        text_result += item.get("text", "")
-
-            await self.audit.record(
-                tool_name=tool_name,
-                arguments=arguments,
-                platform=self.platform,
-                caller=caller,
-                result_summary=text_result,
-                is_error=result.is_error,
-                duration_ms=duration_ms,
-                permission="allow",
-                token_count=result.token_count,
+        if resp.error:
+            http_status = _jsonrpc_code_to_http(resp.error.get("code", -32603))
+            return self._rest_error(
+                resp.error.get("message", "Tool execution failed"),
+                http_status,
             )
 
-            return _json_response({
-                "success": not result.is_error,
-                "tool_name": tool_name,
-                "result": text_result if text_result else str(result.content),
-                "duration_ms": round(duration_ms, 2),
-                "is_error": result.is_error,
-            })
+        # 提取文本结果
+        content = resp.result.get("content", [])
+        text_result = "".join(item.get("text", "") for item in content if item.get("type") == "text")
 
-        except Exception as e:
-            duration_ms = (time.perf_counter() - start) * 1000
-            await self.audit.record(
-                tool_name=tool_name,
-                arguments=arguments,
-                platform=self.platform,
-                caller=caller,
-                is_error=True,
-                duration_ms=duration_ms,
-            )
-            return _error_response(f"Tool execution error: {e}", 500)
-
-    # ── health ─────────────────────────────────────────────────────
-
-    async def handle_health(self) -> Dict[str, Any]:
-        """GET /api/v1/health"""
-        stats = self.registry.get_stats()
-        return _json_response({
-            "status": "healthy",
-            "server": "MCP Agent Gateway",
-            "version": "3.0.0",
-            "tools": stats.get("tools", 0),
-            "providers": stats.get("providers", 0),
+        duration_ms = (time.perf_counter() - start) * 1000
+        return self._rest_response({
+            "success": not resp.result.get("isError", False),
+            "tool_name": tool_name,
+            "result": text_result or str(content),
+            "duration_ms": round(duration_ms, 2),
+            "is_error": resp.result.get("isError", False),
         })
 
-    # ── logs ───────────────────────────────────────────────────────
+    # ── health — 直接从协议内核取数 ─────────────────────────────
+
+    async def handle_health(self) -> Dict[str, Any]:
+        """GET /api/v1/health — 直接从协议内核取数。"""
+        stats = self.protocol.get_stats()
+        return self._rest_response({
+            "status": "healthy",
+            "server": "MCP 本地工具网关",
+            "version": "2.0.0",
+            "protocol_handlers": stats.get("protocol", {}).get("handlers", 0),
+            "tools": stats.get("registry", {}).get("tools", 0),
+            "providers": stats.get("registry", {}).get("providers", 0),
+            "active_sessions": stats.get("protocol", {}).get("active_sessions", 0),
+        })
+
+    # ── logs ─────────────────────────────────────────────────────
 
     async def handle_logs(self, query_params: Dict[str, str]) -> Dict[str, Any]:
-        """
-        GET /api/v1/logs?platform=dify&tool=sysinfo&limit=50
+        """GET /api/v1/logs"""
+        from mcp_gateway.audit import get_audit_logger
+        audit = get_audit_logger()
 
-        查询审计日志。
-        """
         platform = query_params.get("platform")
         tool_name = query_params.get("tool")
         try:
@@ -308,42 +274,304 @@ class ExternalAPIHandler:
             offset = 0
         error_only = query_params.get("error_only", "false").lower() == "true"
 
-        entries = await self.audit.query(
+        entries = await audit.query(
             platform=platform,
             tool_name=tool_name,
             limit=min(limit, 200),
             offset=offset,
             error_only=error_only,
         )
-        return _json_response({
+        return self._rest_response({
             "entries": entries,
             "count": len(entries),
-            "filters": {
-                "platform": platform,
-                "tool": tool_name,
-                "error_only": error_only,
-            },
+            "filters": {"platform": platform, "tool": tool_name, "error_only": error_only},
         })
 
-    # ── stats ──────────────────────────────────────────────────────
+    # ── stats — 直接从协议内核取数 ──────────────────────────────
 
     async def handle_stats(self) -> Dict[str, Any]:
-        """GET /api/v1/stats"""
-        audit_stats = await self.audit.get_stats()
-        registry_stats = self.registry.get_stats()
-        return _json_response({
-            "audit": audit_stats,
-            "registry": registry_stats,
+        """GET /api/v1/stats — 协议内核 + 审计日志统计。"""
+        from mcp_gateway.audit import get_audit_logger
+        audit = get_audit_logger()
+        return self._rest_response({
+            "protocol": self.protocol.get_stats(),
+            "audit": await audit.get_stats(),
         })
 
-    # ── tenants ────────────────────────────────────────────────────
+    # ── tenants ──────────────────────────────────────────────────
 
     async def handle_tenants_list(self) -> Dict[str, Any]:
-        """GET /api/v1/tenants — 列出所有租户"""
-        return _json_response({
-            "tenants": self.tenancy.list_tenants(),
-            "count": len(self.tenancy._tenants),
+        """GET /api/v1/tenants"""
+        from mcp_gateway.tenancy import get_tenancy
+        tenancy = get_tenancy()
+        return self._rest_response({
+            "tenants": tenancy.list_tenants(),
+            "count": len(tenancy._tenants),
         })
+
+
+# ── JSON-RPC 错误码 → HTTP 状态码 ─────────────────────────────
+
+_RPC_TO_HTTP = {
+    -32700: 400,   # Parse error
+    -32600: 400,   # Invalid Request
+    -32601: 404,   # Method not found
+    -32602: 422,   # Invalid params
+    -32603: 500,   # Internal error
+    -32001: 403,   # Permission denied
+    -32002: 500,   # Tool execution error
+    -32003: 504,   # Tool timeout
+    -32004: 404,   # Resource not found
+    -32005: 401,   # Auth required
+    -32006: 429,   # Rate limited
+    -32007: 401,   # Session expired
+}
+
+
+def _jsonrpc_code_to_http(rpc_code: int) -> int:
+    """将 JSON-RPC 错误码映射到 HTTP 状态码。"""
+    return _RPC_TO_HTTP.get(rpc_code, 500)
+
+
+# ── Ollama API Proxy ──────────────────────────────────────────────
+
+_OLLAMA_BASE_URL = "http://127.0.0.1:11434"
+_OLLAMA_PROXY_PREFIX = "/api/v1/ollama/proxy"
+
+
+# ── 标准化错误码 ──────────────────────────────────────────────
+
+OLLAMA_ERROR_MAP = {
+    "not found": {"code": "MODEL_NOT_FOUND", "status": 404, "message": "请求的模型不存在，请检查模型名称"},
+    "does not support tools": {"code": "TOOLS_NOT_SUPPORTED", "status": 400, "message": "当前模型不支持工具调用"},
+    "does not support vision": {"code": "VISION_NOT_SUPPORTED", "status": 400, "message": "当前模型不支持视觉识别"},
+    "context length": {"code": "CONTEXT_OVERFLOW", "status": 413, "message": "输入超过模型最大上下文长度"},
+    "timeout": {"code": "TIMEOUT", "status": 504, "message": "模型生成超时，请稍后重试"},
+    "llama server error": {"code": "LLAMA_SERVER_CRASH", "status": 502, "message": "模型推理引擎异常，请检查 GPU/CPU 状态"},
+    "CUDA error": {"code": "GPU_CRASH", "status": 502, "message": "GPU 推理异常，可能为显卡驱动或显存不足导致"},
+    "out of memory": {"code": "OOM", "status": 507, "message": "显存/内存不足，请尝试更小的模型或量化版本"},
+    "load failed": {"code": "MODEL_LOAD_FAILED", "status": 502, "message": "模型加载失败，请检查模型文件是否完整"},
+    "connection refused": {"code": "OLLAMA_DOWN", "status": 503, "message": "Ollama 服务未运行或无法连接"},
+}
+
+
+def _standardize_ollama_error(status: int, body: str) -> Dict[str, Any]:
+    """
+    将 Ollama 原始错误转换为标准化格式，Dify 侧可以识别并优雅降级。
+
+    返回：
+    {
+        "error": {
+            "code": "GPU_CRASH",
+            "message": "GPU 推理异常...",
+            "ollama_raw": "CUDA error: device kernel image is invalid",
+            "proxy_status": 502
+        }
+    }
+    """
+    error_data = {"code": "UNKNOWN", "status": status, "message": f"Ollama 返回错误 (HTTP {status})"}
+
+    try:
+        raw = json.loads(body)
+        raw_msg = raw.get("error", body) if isinstance(raw, dict) else body
+    except json.JSONDecodeError:
+        raw_msg = body
+
+    if isinstance(raw_msg, str):
+        raw_lower = raw_msg.lower()
+        for keyword, info in OLLAMA_ERROR_MAP.items():
+            if keyword.lower() in raw_lower:
+                error_data.update(info)
+                break
+
+    error_data["ollama_raw"] = str(raw_msg)[:500]
+    return {"error": error_data}
+
+
+class OllamaProxyResponse:
+    """Response from Ollama proxy — wraps raw HTTP response."""
+    def __init__(self, status: int, body: str, content_type: str = "application/json"):
+        self.status = status
+        self.body = body
+        self.content_type = content_type
+        self.is_error = status >= 400
+        self.error_body: str = ""
+
+
+async def _forward_ollama_request(
+    method: str, path: str, request_body: str = "",
+) -> OllamaProxyResponse:
+    """
+    Forward a request to Ollama and return the response.
+
+    Args:
+        method: HTTP method (GET, POST, etc.)
+        path: The remaining URL path to forward (e.g. /api/tags, /api/chat)
+        request_body: Raw request body string
+
+    Returns:
+        OllamaProxyResponse with status, body, content_type
+    """
+    target_url = f"{_OLLAMA_BASE_URL}{path}"
+
+    try:
+        req = urllib.request.Request(
+            target_url,
+            data=request_body.encode("utf-8") if request_body else None,
+            method=method,
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            body = resp.read().decode("utf-8")
+            content_type = resp.headers.get("Content-Type", "application/json")
+            return OllamaProxyResponse(
+                status=resp.status,
+                body=body,
+                content_type=content_type,
+            )
+    except urllib.error.HTTPError as e:
+        raw_body = e.read().decode("utf-8") if e.fp else str(e)
+        # 标准化错误码
+        standardized = _standardize_ollama_error(e.code, raw_body)
+        return OllamaProxyResponse(
+            status=standardized.get("error", {}).get("status", e.code),
+            body=json.dumps(standardized, ensure_ascii=False),
+            content_type="application/json",
+        )
+    except urllib.error.URLError as e:
+        error_body = json.dumps(
+            _standardize_ollama_error(502, str(e.reason)),
+            ensure_ascii=False,
+        )
+        return OllamaProxyResponse(
+            status=502,
+            body=error_body,
+            content_type="application/json",
+        )
+    except Exception as e:
+        error_body = json.dumps(
+            _standardize_ollama_error(502, str(e)),
+            ensure_ascii=False,
+        )
+        return OllamaProxyResponse(
+            status=502,
+            body=error_body,
+            content_type="application/json",
+        )
+
+
+async def _forward_ollama_streaming(
+    method: str, path: str, request_body: str,
+) -> OllamaProxyResponse:
+    """
+    检测是否为流式请求。如果 stream=true，返回 SSE 流标记。
+    否则退回普通代理。
+    """
+    # 解析请求体判断是否流式
+    try:
+        body_data = json.loads(request_body) if request_body else {}
+        is_stream = body_data.get("stream", False)
+    except json.JSONDecodeError:
+        is_stream = False
+
+    if not is_stream:
+        # 非流式 — 走普通代理
+        return await _forward_ollama_request(method, path, request_body)
+
+    # 流式 — 返回标记，由传输层处理 SSE 转发
+    return OllamaProxyResponse(
+        status=200,
+        body=json.dumps({"_stream": True, "_target": f"{_OLLAMA_BASE_URL}{path}"}),
+        content_type="application/json",
+    )
+
+
+def create_ollama_proxy_routes() -> Dict[str, Callable]:
+    """
+    Create Ollama API proxy routes.
+
+    Dify uses these endpoints to talk to Ollama through the MCP Gateway.
+    Proxy all requests: /api/v1/ollama/proxy/api/* → http://127.0.0.1:11434/api/*
+
+    Returns:
+        {("*", "/api/v1/ollama/proxy/{tail:.*}"): handler}
+    """
+    routes = {}
+
+    async def _ollama_proxy_handler(request) -> Dict[str, Any]:
+        """
+        Catch-all handler for Ollama proxy.
+        Extracts the path after /api/v1/ollama/proxy/ and forwards to Ollama.
+        """
+        # Get the full path from the request
+        full_path = request.path if hasattr(request, 'path') else str(request.url)
+
+        # Extract the path after the proxy prefix
+        if _OLLAMA_PROXY_PREFIX in full_path:
+            idx = full_path.index(_OLLAMA_PROXY_PREFIX)
+            remaining = full_path[idx + len(_OLLAMA_PROXY_PREFIX):]
+        else:
+            remaining = ""
+
+        if not remaining:
+            remaining = "/"
+
+        method = request.method
+        body = ""
+        if method in ("POST", "PUT", "PATCH"):
+            body = await request.text() if hasattr(request, 'text') else ""
+
+        # 检查是否为流式请求
+        try:
+            body_data = json.loads(body) if body else {}
+            is_stream = body_data.get("stream", False)
+        except json.JSONDecodeError:
+            is_stream = False
+
+        if is_stream:
+            # 流式 SSE 转发 — 由传输层处理
+            return {
+                "_stream": True,
+                "_stream_url": f"http://127.0.0.1:11434{remaining}",
+                "_stream_body": body,
+                "status": 200,
+                "headers": {
+                    **_cors_headers(),
+                    "Content-Type": "text/event-stream",
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                },
+                "body": "",
+            }
+
+        proxy_resp = await _forward_ollama_request(method, remaining, body)
+
+        # 如果代理返回错误但 body 未标准化，补一层标准化
+        response_body = proxy_resp.body
+        if proxy_resp.is_error:
+            try:
+                parsed = json.loads(response_body)
+                if "error" not in parsed or "code" not in parsed.get("error", {}):
+                    standardized = _standardize_ollama_error(proxy_resp.status, response_body)
+                    response_body = json.dumps(standardized, ensure_ascii=False)
+            except json.JSONDecodeError:
+                standardized = _standardize_ollama_error(proxy_resp.status, response_body)
+                response_body = json.dumps(standardized, ensure_ascii=False)
+
+        return {
+            "status": proxy_resp.status,
+            "headers": {
+                **_cors_headers(),
+                "Content-Type": proxy_resp.content_type,
+            },
+            "body": response_body,
+        }
+
+    # Catch-all route for any HTTP method under the proxy prefix
+    routes[("*", _OLLAMA_PROXY_PREFIX)] = _ollama_proxy_handler
+    routes[("*", f"{_OLLAMA_PROXY_PREFIX}/{{tail:.*}}")] = _ollama_proxy_handler
+
+    return routes
 
 
 def create_api_routes(

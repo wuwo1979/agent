@@ -15,6 +15,7 @@ from typing import Any, Dict
 from core.exceptions import ToolExecutionError, ToolTimeoutError
 from core.types import ToolCallResult, ToolDefinition
 from mcp_gateway.protocol import BaseToolProvider
+from mcp_gateway.workspace import WORKSPACE_DIR
 
 # Blocked commands for safety
 BLOCKED_COMMANDS = [
@@ -36,6 +37,31 @@ BLOCKED_COMMANDS = [
 INTERACTIVE_COMMANDS_PATTERNS = [
     "vim", "nano", "less ", "more ", "top", "htop",
     "tail -f", "watch ", "vi ", "ed ",
+]
+
+# ════════════════════════════════════════════════════════════
+# 危险语法检测 — 防止绕过白名单
+# 禁止管道、重定向、后台执行、命令替换等，避免恶意利用
+# ════════════════════════════════════════════════════════════
+DANGEROUS_SYNTAX_PATTERNS = [
+    # ── 管道 ─────────────────────────────────────────────
+    ("|", "管道 (|) 已禁用，请使用子命令参数替代"),
+    # ── 重定向 ───────────────────────────────────────────
+    (">>", "输出追加 (>>) 已禁用"),
+    (">", "输出重定向 (>) 已禁用"),
+    (" 2>", "错误重定向 (2>) 已禁用"),
+    ("<", "输入重定向 (<) 已禁用"),
+    # ── 后台执行 ─────────────────────────────────────────
+    ("& ", "后台执行 (&) 已禁用"),
+    ("&&", "链式执行 (&&) 已禁用"),
+    ("||", "条件执行 (||) 已禁用"),
+    # ── 命令替换 / 子 shell ──────────────────────────────
+    ("$(", "命令替换 ($()) 已禁用"),
+    ("`", "反引号命令替换已禁用"),
+    (";", "多命令分隔符 (;) 已禁用"),
+    # ── 进程替换 ─────────────────────────────────────────
+    ("<(", "进程替换 (<()) 已禁用"),
+    (">(", "进程替换 (>() ) 已禁用"),
 ]
 
 # Maximum command length
@@ -175,6 +201,19 @@ class TerminalToolProvider(BaseToolProvider):
                     "run_command",
                     f"Command not in whitelist. Allowed prefixes: {', '.join(ALLOWED_COMMANDS_PREFIXES[:10])}... (config USE_COMMAND_WHITELIST=True)"
                 )
+
+        # Safety check 5: dangerous syntax check — prevents bypass of command whitelist
+        for syntax, msg in DANGEROUS_SYNTAX_PATTERNS:
+            if syntax in command:
+                raise ToolExecutionError("run_command", f"危险语法: {msg}")
+
+        # Safety check 6: workspace sandbox - working directory must be within workspace
+        resolved_cwd = os.path.abspath(os.path.join(os.getcwd(), cwd))
+        if not resolved_cwd.startswith(WORKSPACE_DIR):
+            raise ToolExecutionError(
+                "run_command",
+                f"Working directory '{cwd}' is outside workspace '{WORKSPACE_DIR}'"
+            )
 
         timeout = min(timeout, 60)
 

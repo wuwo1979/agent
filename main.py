@@ -1,10 +1,10 @@
 """
-MCP Gateway + Multi-Agent Scheduling System
-Lightweight local MCP gateway and multi-agent scheduling system.
+MCP 本地工具网关 - 统一入口
+HTTP + STDIO 双模传输，支持 Dify / Trae / Ollama 全链路工具调度。
 
 Usage:
     python main.py                        # Start HTTP gateway
-    python main.py --mode stdio          # STDIO mode
+    python main.py --mode stdio          # STDIO mode (for Trae IDE)
     python main.py --benchmark           # Run benchmarks
     python main.py --demo                # Run demo
 """
@@ -104,7 +104,7 @@ async def run_demo():
 
 async def main():
     parser = argparse.ArgumentParser(
-        description="MCP Gateway + Multi-Agent Scheduling System"
+        description="MCP 本地工具网关 - HTTP + STDIO 双模传输"
     )
     parser.add_argument("--host", default="0.0.0.0", help="Bind address")
     parser.add_argument("--port", type=int, default=9090, help="Bind port")

@@ -1,4 +1,4 @@
-name: MCP Agent Gateway CI
+name: MCP 本地工具网关 CI
 
 on:
   push:

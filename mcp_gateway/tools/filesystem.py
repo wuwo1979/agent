@@ -16,11 +16,12 @@ from typing import Any, Dict, List
 from core.exceptions import PermissionDeniedError, ToolExecutionError
 from core.types import ToolCallResult, ToolDefinition
 from mcp_gateway.protocol import BaseToolProvider
+from mcp_gateway.workspace import WORKSPACE_DIR
 
 # Safe directories (prevent path traversal attacks)
-# Can be configured via MCP_FS_SAFE_ROOTS env var (semicolon-separated)
-# or SAFE_ROOTS env var (comma-separated, legacy)
-_DEFAULT_ROOTS = [os.getcwd(), os.path.expanduser("~")]
+# Priority: MCP_FS_SAFE_ROOTS env > MCP_WORKSPACE env > current directory + home
+# MCP_WORKSPACE is also used by terminal tool for command sandboxing
+_DEFAULT_ROOTS = [WORKSPACE_DIR, os.path.expanduser("~")]
 _env_roots = os.environ.get("MCP_FS_SAFE_ROOTS") or os.environ.get("SAFE_ROOTS")
 if _env_roots:
     SAFE_ROOTS = [os.path.abspath(p.strip()) for p in _env_roots.split(";") if p.strip()]
@@ -175,13 +176,42 @@ class FilesystemToolProvider(BaseToolProvider):
         ))
 
     def _resolve_path(self, path: str) -> str:
-        """Resolve and validate a file path."""
-        resolved = os.path.abspath(os.path.expanduser(path))
-        is_safe = any(resolved.startswith(os.path.abspath(r)) for r in SAFE_ROOTS)
+        """
+        Resolve and validate a file path with strict traversal protection.
+        
+        - 解析符号链接和 '..' 得到真实路径
+        - 与白名单目录进行严格前缀匹配（带分隔符后缀）
+        - 杜绝 C:\\Users\\admin 匹配 C:\\Users\\admin_hacker 这类绕过
+        """
+        # 1. 展开用户目录
+        expanded = os.path.expanduser(path)
+        # 2. 规范化路径分隔符，解析 ..
+        normalized = os.path.normpath(expanded)
+        # 3. 转为绝对路径
+        if not os.path.isabs(normalized):
+            normalized = os.path.abspath(normalized)
+        # 4. 解析符号链接（若有）
+        try:
+            resolved = os.path.realpath(normalized)
+        except OSError:
+            resolved = normalized
+
+        # 5. 严格前缀检查：确保路径在白名单目录内
+        resolved_norm = os.path.normpath(resolved)
+        is_safe = False
+        for root in SAFE_ROOTS:
+            root_norm = os.path.normpath(os.path.abspath(root))
+            # 追加分隔符，防止 C:\Users\admin 匹配 C:\Users\admin_hacker
+            root_prefix = root_norm + os.sep
+            if resolved_norm == root_norm or resolved_norm.startswith(root_prefix):
+                is_safe = True
+                break
+
         if not is_safe:
             raise PermissionDeniedError(
                 "read_file",
-                f"Path '{resolved}' is outside safe directories"
+                f"Path traversal blocked: '{resolved}' is outside safe directories "
+                f"(allowed: {SAFE_ROOTS})"
             )
         return resolved
 

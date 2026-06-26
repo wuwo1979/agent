@@ -15,7 +15,7 @@ from core.exceptions import PermissionDeniedError, ToolExecutionError
 from core.types import ToolDefinition
 from mcp_gateway.api import ExternalAPIHandler
 from mcp_gateway.audit import AuditLogger
-from mcp_gateway.protocol import BaseToolProvider, ToolRegistry
+from mcp_gateway.protocol import BaseToolProvider, MCPProtocolHandler, ToolRegistry
 from mcp_gateway.security import (
     APIKeyAuthenticator,
     AuthContext,
@@ -336,8 +336,9 @@ class TestExternalAPIHandler:
     def handler(self):
         registry = ToolRegistry()
         registry.register_provider(MockAPIToolProvider())
-        security = SecurityMiddleware()
-        handler = ExternalAPIHandler(registry=registry, security=security, platform="dify")
+        protocol = MCPProtocolHandler(server_name="test", server_version="2.0.0")
+        protocol.set_registry(registry)
+        handler = ExternalAPIHandler(protocol_handler=protocol, platform="dify")
         return handler
 
     def test_tools_list_format(self, handler):

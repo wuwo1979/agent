@@ -3,20 +3,20 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
-name = "mcp-agent-gateway"
+name = "mcp-tool-gateway"
 version = "3.0.0"
-description = "让 AI Agent 直接操控本地环境的 MCP 网关"
+description = "MCP 本地工具网关 - HTTP + STDIO 双模传输，支持 Dify / Trae / Ollama 全链路"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-keywords = ["mcp", "agent", "gateway", "ai", "tools"]
+keywords = ["mcp", "tool-gateway", "dify", "trae", "ollama", "tools"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
 ]
 
 dependencies = [
@@ -25,11 +25,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/your-username/mcp-agent-gateway"
-Source = "https://github.com/your-username/mcp-agent-gateway"
+Homepage = "https://github.com/your-username/mcp-tool-gateway"
+Source = "https://github.com/your-username/mcp-tool-gateway"
 
 [project.scripts]
-mcp-gateway = "main:entry_point"
+mcp-tool-gateway = "main:entry_point"
 
 [tool.coverage.run]
 source = ["."]
