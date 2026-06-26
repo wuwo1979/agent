@@ -100,14 +100,17 @@ class MCPProtocolHandler:
         self.register_handler("initialize", self._handle_initialize)
         self.register_handler("ping", self._handle_ping)
         self.register_notification("notifications/initialized", self._handle_initialized)
+        self.register_notification("notifications/cancelled", self._handle_cancelled)
 
     def register_tool_handlers(self, registry):
         """Register tool-related handlers linked to a ToolRegistry."""
         self._registry = registry
         self.register_handler("tools/list", self._handle_tools_list)
         self.register_handler("tools/call", self._handle_tools_call)
+        self.register_handler("tools/get", self._handle_tools_get)
         self.register_handler("resources/list", self._handle_resources_list)
         self.register_handler("resources/read", self._handle_resources_read)
+        self.register_handler("resources/templates/list", self._handle_resource_templates_list)
         self.register_handler("prompts/list", self._handle_prompts_list)
         self.register_handler("prompts/get", self._handle_prompts_get)
 
@@ -159,6 +162,10 @@ class MCPProtocolHandler:
         self._initialized = True
         logger.info("Client initialized successfully")
 
+    async def _handle_cancelled(self, params: Dict[str, Any]):
+        """Handle cancelled notification."""
+        logger.info(f"Request cancelled: {params}")
+
     async def _handle_tools_list(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle tools/list request."""
         if not hasattr(self, '_registry'):
@@ -173,6 +180,20 @@ class MCPProtocolHandler:
         arguments = params.get("arguments", {})
         result = await self._registry.call_tool(name, arguments)
         return result.to_mcp_format()
+
+    async def _handle_tools_get(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle tools/get request (MCP spec: single tool detail)."""
+        if not hasattr(self, '_registry'):
+            raise MethodNotFoundError("tools/get")
+        name = params.get("name", "")
+        tool_def = self._registry.get_tool(name)
+        if not tool_def:
+            raise ToolNotFoundError(name)
+        return {"tool": tool_def.to_mcp_format()}
+
+    async def _handle_resource_templates_list(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle resources/templates/list request."""
+        return {"resourceTemplates": []}
 
     async def _handle_resources_list(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle resources/list request."""

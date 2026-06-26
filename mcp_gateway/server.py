@@ -126,6 +126,14 @@ class MCPServer:
             tools = self.registry.list_tools(category=category)
             return {"tools": tools}
 
+        # tools/get
+        async def handle_get_tool(params: dict) -> dict:
+            name = params.get("name", "")
+            tool = self.registry.get_tool(name)
+            if not tool:
+                return {"tool": None}
+            return {"tool": tool.to_mcp_format()}
+
         # tools/call
         async def handle_call_tool(params: dict) -> dict:
             tool_name = params.get("name", "")
@@ -154,6 +162,7 @@ class MCPServer:
             return self.registry.get_stats()
 
         self.protocol.register_handler("tools/list", handle_list_tools)
+        self.protocol.register_handler("tools/get", handle_get_tool)
         self.protocol.register_handler("tools/call", handle_call_tool)
         self.protocol.register_handler("resources/list", handle_list_resources)
         self.protocol.register_handler("prompts/list", handle_list_prompts)

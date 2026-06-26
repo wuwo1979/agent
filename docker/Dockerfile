@@ -14,8 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install only runtime dependencies
-COPY requirements-runtime.txt /build/requirements-runtime.txt
-RUN pip install --no-cache-dir --user -r requirements-runtime.txt
+COPY requirements/runtime.txt /build/requirements-runtime.txt
+RUN pip install --no-cache-dir --user -r /build/requirements-runtime.txt
 
 # ============================================================
 # Stage 2: Runtime
