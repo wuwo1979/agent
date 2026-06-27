@@ -34,13 +34,13 @@ async def run_demo():
     from performance.cache import IncrementalContextCache
 
     def section(title):
-        print(f"\n  {title:─<60}")
+        print(f"\n  {title:-<60}")
 
     print("=" * 64)
-    print("  MCP Agent Gateway v2.0 — Auto Demo (全自动演示)")
+    print("  MCP Agent Gateway v2.0 - Auto Demo (全自动演示)")
     print("=" * 64)
 
-    # ── Step 1: Register tools ──
+    # Step 1: Register tools
     section("Step 1: 注册工具提供者")
     registry = ToolRegistry()
     providers = [
@@ -53,69 +53,69 @@ async def run_demo():
     for p in providers:
         registry.register_provider(p)
     total_tools = sum(len(p.list_tools()) for p in providers)
-    print(f"    ✓ {len(providers)} 个提供者, {total_tools} 个工具")
+    print(f"    [OK] {len(providers)} 个提供者, {total_tools} 个工具")
 
-    # ── Step 2: List tools ──
+    # -- Step 2: List tools --
     section("Step 2: 可用工具列表")
     for tool in registry.list_tools():
-        print(f"    • {tool['name']:<20} {tool['description'][:55]}")
+        print(f"    - {tool['name']:<20} {tool['description'][:55]}")
 
-    # ── Step 3: Call sysinfo ──
+    # -- Step 3: Call sysinfo --
     section("Step 3: 工具调用测试 — sysinfo")
     t0 = time.perf_counter()
     result = await registry.call_tool("sysinfo", {})
     elapsed = (time.perf_counter() - t0) * 1000
     if not result.is_error:
         info = json.loads(result.content[0]["text"])
-        print(f"    ✓ Platform: {info.get('platform')} {info.get('release')}")
-        print(f"    ✓ Python:   {info.get('python_version')}")
-        print(f"    ✓ Time:     {elapsed:.0f}ms")
+        print(f"    [OK] Platform: {info.get('platform')} {info.get('release')}")
+        print(f"    [OK] Python:   {info.get('python_version')}")
+        print(f"    [OK] Time:     {elapsed:.0f}ms")
     else:
         print(f"    ✗ Failed: {result.content}")
 
-    # ── Step 4: Test filesystem ──
+    # -- Step 4: Test filesystem --
     section("Step 4: 文件系统工具 — file_stat")
     t0 = time.perf_counter()
     result = await registry.call_tool("file_stat", {"path": "main.py"})
     elapsed = (time.perf_counter() - t0) * 1000
     if not result.is_error:
         stat = json.loads(result.content[0]["text"])
-        print(f"    ✓ {stat.get('path')} | size: {stat.get('size_bytes')}B | modified: {stat.get('modified')[:10]}")
-        print(f"    ✓ Time: {elapsed:.0f}ms")
+        print(f"    [OK] {stat.get('path')} | size: {stat.get('size_bytes')}B | modified: {stat.get('modified')[:10]}")
+        print(f"    [OK] Time: {elapsed:.0f}ms")
     else:
         print(f"    ✗ Failed: {result.content}")
 
-    # ── Step 5: List dir ──
+    # -- Step 5: List dir --
     section("Step 5: 文件系统工具 — list_dir")
     result = await registry.call_tool("list_dir", {"path": "."})
     if not result.is_error:
         entries = json.loads(result.content[0]["text"])
         dirs = [e["name"] for e in entries.get("entries", []) if e.get("type") == "dir"][:6]
         files = [e["name"] for e in entries.get("entries", []) if e.get("type") == "file"][:6]
-        print(f"    ✓ Directories ({len(dirs)}): {', '.join(dirs)}")
-        print(f"    ✓ Files ({len(files)}): {', '.join(files)}")
+        print(f"    [OK] Directories ({len(dirs)}): {', '.join(dirs)}")
+        print(f"    [OK] Files ({len(files)}): {', '.join(files)}")
     else:
         print(f"    ✗ Failed: {result.content}")
 
-    # ── Step 6: Database ──
+    # -- Step 6: Database --
     section("Step 6: 数据库工具 — list_tables")
     result = await registry.call_tool("list_tables", {})
     if not result.is_error:
         tables = json.loads(result.content[0]["text"])
         names = [t.get("name", t) for t in (tables if isinstance(tables, list) else tables.get("tables", []))]
-        print(f"    ✓ Tables ({len(names)}): {', '.join(names[:5])}")
+        print(f"    [OK] Tables ({len(names)}): {', '.join(names[:5])}")
     else:
         print(f"    ✗ Failed: {result.content}")
 
-    # ── Step 7: Web ──
+    # -- Step 7: Web --
     section("Step 7: 网络工具 — web_fetch")
     result = await registry.call_tool("web_fetch", {"url": "https://httpbin.org/get"})
     if not result.is_error:
-        print("    ✓ HTTP GET 请求成功")
+        print("    [OK] HTTP GET 请求成功")
     else:
-        print(f"    ⚠ Web fetch 不可用 (可能需要网络): {result.content}")
+        print(f"    [!] Web fetch 不可用 (可能需要网络): {result.content}")
 
-    # ── Step 8: Performance ──
+    # -- Step 8: Performance --
     section("Step 8: 缓存与性能")
     cache = IncrementalContextCache()
     cache.set("test_key", {}, "demo_value", 300)
@@ -124,10 +124,10 @@ async def run_demo():
     cache.set("demo_tools", {}, f'{{"tools": {total_tools}}}', 300)
     cache.get("demo_tools", {})
     stats = cache.get_stats() if hasattr(cache, 'get_stats') else {}
-    print(f"    ✓ 缓存写入/读取: {'成功' if hit else '失败'}")
-    print(f"    ✓ 命中率: {stats.get('hit_rate', 'N/A')}")
+    print(f"    [OK] 缓存写入/读取: {'成功' if hit else '失败'}")
+    print(f"    [OK] 命中率: {stats.get('hit_rate', 'N/A')}")
 
-    # ── Done ──
+    # -- Done --
     print(f"\n{'=' * 64}")
     print(f"  Demo 完成! {total_tools} 工具, {len(providers)} 提供者, 全部运行正常")
     print(f"{'=' * 64}")
@@ -147,14 +147,14 @@ async def run_status():
     print("  MCP Agent Gateway v2.0 — Status Dashboard")
     print("=" * 64)
 
-    # ── System ──
-    print(f"\n  {'System':─<40}")
+    # -- System --
+    print(f"\n  {'System':-<40}")
     print(f"  Python:     {platform.python_version()} ({platform.machine()})")
     print(f"  Platform:   {platform.system()} {platform.release()}")
     print(f"  CWD:        {os.getcwd()}")
 
-    # ── Core Modules ──
-    print(f"\n  {'Core Modules':─<40}")
+    # -- Core Modules --
+    print(f"\n  {'Core Modules':-<40}")
     modules = {
         "mcp_gateway.protocol":     "Protocol handler + middleware pipeline",
         "mcp_gateway.transport":    "HTTP/STDIO transport layer",
@@ -176,8 +176,8 @@ async def run_status():
         except Exception as e:
             print(f"  [FAIL] {mod_name:<38} {str(e)[:40]}")
 
-    # ── Tool Providers ──
-    print(f"\n  {'Tool Providers':─<40}")
+    # -- Tool Providers --
+    print(f"\n  {'Tool Providers':-<40}")
     from mcp_gateway.protocol import ToolRegistry
 
     registry = ToolRegistry()
@@ -210,11 +210,11 @@ async def run_status():
             print(f"  [FAIL] {name:<15} {str(e)[:40]}")
 
     total_tools = registry.get_stats()["tools"]
-    print(f"  {'─'*42}")
+    print(f"  {'-'*42}")
     print(f"  Total: {provider_count} providers, {total_tools} tools")
 
-    # ── Middleware Pipeline ──
-    print(f"\n  {'Middleware Pipeline':─<40}")
+    # -- Middleware Pipeline --
+    print(f"\n  {'Middleware Pipeline':-<40}")
     from mcp_gateway.audit import AuditLogger
     from mcp_gateway.protocol import MCPProtocolHandler, create_audit_middleware
     from mcp_gateway.security import SecurityMiddleware
@@ -233,8 +233,8 @@ async def run_status():
     print(f"  [OK] Before middleware: {before_count} (Auth, RateLimit)")
     print(f"  [OK] After middleware:  {after_count} (Audit, Cache)")
 
-    # ── Tenants ──
-    print(f"\n  {'Tenants':─<40}")
+    # -- Tenants --
+    print(f"\n  {'Tenants':-<40}")
     tenant_count = 0
     try:
         from mcp_gateway.tenancy import get_tenancy
@@ -250,8 +250,8 @@ async def run_status():
     except Exception as e:
         print(f"  [WARN] {str(e)[:50]}")
 
-    # ── Test Status ──
-    print(f"\n  {'Test Status':─<40}")
+    # -- Test Status --
+    print(f"\n  {'Test Status':-<40}")
     try:
         import subprocess
         result = subprocess.run(
@@ -267,13 +267,13 @@ async def run_status():
     except Exception:
         print("  [SKIP] Run 'pytest tests/' to verify")
 
-    # ── Safety Checks ──
-    print(f"\n  {'Safety Checks':─<40}")
+    # -- Safety Checks --
+    print(f"\n  {'Safety Checks':-<40}")
     print("  [OK] JSON-RPC 2.0 error codes: -32700 to -32603 standard")
     print("  [OK] Path traversal protection: active")
     print("  [OK] SQL injection prevention: parameterized queries")
 
-    # ── Summary ──
+    # -- Summary --
     print(f"\n{'='*64}")
     all_ok = ok_count == len(modules)
     status = "ALL SYSTEMS GO" if all_ok else "SOME MODULES FAILED"
