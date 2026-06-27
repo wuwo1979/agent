@@ -319,7 +319,10 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_unicode_path_bypass(self, fs_provider):
         """Unicode 字符路径穿越尝试。"""
-        unicode_traversal = "..\\..\\..\\..\\etc\\passwd"
+        unicode_traversal = (
+            "..\\..\\..\\..\\etc\\passwd" if os.name == "nt"
+            else "../../../../etc/passwd"
+        )
         with pytest.raises(PermissionDeniedError):
             await fs_provider.call_tool("read_file", {"path": unicode_traversal})
 
