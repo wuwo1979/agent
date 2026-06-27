@@ -71,7 +71,7 @@ class JSONStructuredHandler(logging.Handler):
         self.stream = stream or sys.stderr
 
     def format(self, record: logging.LogRecord) -> str:
-        # Get request_id from context (fallback to record-level if available)
+        """Format log record as JSON string."""
         rid = get_request_id() or getattr(record, "request_id", "")
         elapsed = get_request_elapsed_ms()
         duration = getattr(record, "duration_ms", elapsed)
@@ -101,6 +101,15 @@ class JSONStructuredHandler(logging.Handler):
             entry["ext"] = extras
 
         return json.dumps(entry, ensure_ascii=False, default=str)
+
+    def emit(self, record: logging.LogRecord):
+        """Output JSON-formatted log record to stderr."""
+        try:
+            msg = self.format(record)
+            self.stream.write(msg + "\n")
+            self.flush()
+        except Exception:
+            self.handleError(record)
 
     @staticmethod
     def _format_time(timestamp: float) -> str:
