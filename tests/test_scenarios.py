@@ -333,7 +333,7 @@ async def test_http_mode():
     print("  场景2: Dify 平台 — HTTP REST API 模式验证")
     print("=" * 60)
 
-    PORT = 19090  # 使用非标准端口避免冲突
+    PORT = 19090  # 使用非标准端口避免与默认 9090 冲突
 
     # 启动 HTTP 网关
     proc = await asyncio.create_subprocess_exec(

@@ -101,7 +101,7 @@ class HealthChecker:
 
     def __init__(self):
         self._components: Dict[str, callable] = {}
-        self.version = "3.0.0"
+        self.version = "2.1.0"
 
     def register_component(self, name: str, check_fn: callable):
         """Register a component health check function"""

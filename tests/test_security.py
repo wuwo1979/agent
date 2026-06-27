@@ -109,6 +109,7 @@ class TestWindowsPathBypass:
                 elif "traversal" in str(e).lower():
                     pytest.fail(f"Case variation should not trigger traversal block: {p}")
 
+    @pytest.mark.skipif(os.name != "nt", reason="Windows-specific: UNC path test")
     @pytest.mark.asyncio
     async def test_unc_path_blocked(self, fs_provider):
         """UNC 路径应被拦截。"""
@@ -121,6 +122,7 @@ class TestWindowsPathBypass:
             with pytest.raises(PermissionDeniedError, match="UNC"):
                 await fs_provider.call_tool("read_file", {"path": p})
 
+    @pytest.mark.skipif(os.name != "nt", reason="Windows-specific: device path test")
     @pytest.mark.asyncio
     async def test_device_paths_blocked(self, fs_provider):
         """Windows 设备名路径应被拦截。"""

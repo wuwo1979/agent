@@ -326,7 +326,7 @@ async def main():
     print(r" | |\/| | |   | |_) | | |  _ / _` | __/ _ \ \ /\ / / _` | | | |")
     print(r" | |  | | |___|  __/  | |_| | (_| | ||  __/\ V  V / (_| | |_| |")
     print(r" |_|  |_|\____|_|      \____|\__,_|\__\___| \_/\_/ \__,_|\__, |")
-    print(r"  Multi-Agent Scheduling System v3.0                     |___/ ")
+    print(r"  Multi-Agent Scheduling System v2.1                     |___/ ")
     print(f"{Printer.RESET}")
 
     results = {}
