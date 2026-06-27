@@ -1,127 +1,152 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 480" font-family="Consolas, 'Courier New', monospace">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 720" font-family="Consolas, 'Courier New', monospace">
   <defs>
     <style>
-      .bg { fill: #0d1117 }
-      .box { fill: #161b22; stroke: #30363d; stroke-width: 1.5; rx: 6 }
-      .box-active { fill: #1c2333; stroke: #58a6ff; stroke-width: 1.5; rx: 6 }
-      .label { fill: #c9d1d9; font-size: 12px; text-anchor: middle; dominant-baseline: central }
-      .label-bold { fill: #58a6ff; font-size: 13px; font-weight: bold; text-anchor: middle; dominant-baseline: central }
-      .label-small { fill: #8b949e; font-size: 10px; text-anchor: middle; dominant-baseline: central }
-      .arrow { stroke: #30363d; stroke-width: 1.5; fill: none }
-      .arrow-accent { stroke: #58a6ff; stroke-width: 1.5; fill: none }
-      .dot { fill: #3fb950; rx: 2 }
-      .section-title { fill: #d29922; font-size: 11px; text-anchor: middle; dominant-baseline: central; font-weight: bold }
+      .bg { fill: #ffffff }
+      .box-layer { fill: #f8f9fa; stroke: #d0d5dd; stroke-width: 1.5; rx: 6 }
+      .box-module { fill: #eef1f6; stroke: #98a2b3; stroke-width: 1; rx: 4 }
+      .box-highlight { fill: #e0e7ff; stroke: #6366f1; stroke-width: 1.5; rx: 4 }
+      .box-tool { fill: #f0f5ff; stroke: #93c5fd; stroke-width: 1; rx: 3 }
+      .box-security { fill: #fef2f2; stroke: #fca5a5; stroke-width: 1; rx: 3 }
+      .label-title { fill: #1e293b; font-size: 14px; font-weight: bold; text-anchor: middle; dominant-baseline: central }
+      .label-layer { fill: #475569; font-size: 12px; font-weight: bold; text-anchor: middle; dominant-baseline: central }
+      .label-module { fill: #334155; font-size: 11px; text-anchor: middle; dominant-baseline: central }
+      .label-small { fill: #64748b; font-size: 10px; text-anchor: middle; dominant-baseline: central }
+      .label-tool { fill: #1e40af; font-size: 10px; text-anchor: middle; dominant-baseline: central }
+      .label-security { fill: #991b1b; font-size: 10px; text-anchor: middle; dominant-baseline: central }
+      .arrow-down { stroke: #94a3b8; stroke-width: 1.5; fill: none }
+      .arrow-down-accent { stroke: #6366f1; stroke-width: 2; fill: none }
     </style>
   </defs>
 
-  <!-- Background -->
-  <rect class="bg" width="960" height="480"/>
-
   <!-- Title -->
-  <text x="480" y="22" fill="#58a6ff" font-size="15" font-weight="bold" text-anchor="middle">MCP Agent Gateway v2.0 — Architecture</text>
-  <text x="480" y="38" fill="#8b949e" font-size="10" text-anchor="middle">Unified protocol kernel · Thin transport adapters · Pluggable middleware</text>
+  <text x="400" y="22" fill="#1e293b" font-size="16" font-weight="bold" text-anchor="middle">MCP Agent Gateway v2.0 — 分层架构图</text>
+  <text x="400" y="40" fill="#64748b" font-size="11" text-anchor="middle">统一 JSON-RPC 协议内核 · 传输层薄适配 · 可插拔中间件管道</text>
 
-  <!-- Layer 1: AI Agents -->
-  <rect class="box" x="30" y="52" width="180" height="80" />
-  <text class="label-bold" x="120" y="78">AI Agent Layer</text>
-  <text class="label-small" x="120" y="96">Trae · Dify · Cursor · VS Code</text>
-  <text class="label-small" x="120" y="110">Any MCP-compatible client</text>
+  <!-- ============================================================ -->
+  <!-- Layer 1: AI Agent Layer -->
+  <!-- ============================================================ -->
+  <rect class="box-layer" x="80" y="58" width="640" height="56" />
+  <text class="label-layer" x="400" y="64">AI Agent 层</text>
+  <rect class="box-module" x="110" y="76" width="120" height="26" /><text class="label-module" x="170" y="89">Trae (STDIO)</text>
+  <rect class="box-module" x="250" y="76" width="120" height="26" /><text class="label-module" x="310" y="89">Cursor (STDIO)</text>
+  <rect class="box-module" x="390" y="76" width="120" height="26" /><text class="label-module" x="450" y="89">Dify (HTTP)</text>
+  <rect class="box-module" x="530" y="76" width="160" height="26" /><text class="label-module" x="610" y="89">Ollama (HTTP Proxy)</text>
 
-  <!-- Layer 1: Transport -->
-  <rect class="box" x="240" y="52" width="220" height="80" />
-  <text class="label-bold" x="350" y="78">Transport Layer (Thin Adapters)</text>
-  <text class="label-small" x="350" y="96">STDIOTransport · HTTPTransport</text>
-  <text class="label-small" x="350" y="110">Protocol dispatch to unified kernel</text>
+  <!-- Arrow Layer 1 → Layer 2 -->
+  <path class="arrow-down" d="M400,114 L400,134" />
+  <polygon fill="#94a3b8" points="395,131 400,141 405,131" />
 
-  <!-- Layer 1: Protocol Kernel -->
-  <rect class="box-active" x="490" y="52" width="220" height="80" />
-  <text class="label-bold" x="600" y="78">MCP Protocol Kernel</text>
-  <text class="label-small" x="600" y="96">MCPProtocolHandler (唯一执行入口)</text>
-  <text class="label-small" x="600" y="110">JSON-RPC 2.0 · 统一错误码</text>
+  <!-- ============================================================ -->
+  <!-- Layer 2: Transport Layer -->
+  <!-- ============================================================ -->
+  <rect class="box-layer" x="80" y="140" width="640" height="56" />
+  <text class="label-layer" x="400" y="146">传输层 Transport（薄适配）</text>
+  <rect class="box-module" x="150" y="158" width="180" height="26" /><text class="label-module" x="240" y="171">STDIOTransport</text>
+  <rect class="box-module" x="470" y="158" width="180" height="26" /><text class="label-module" x="560" y="171">HTTPTransport</text>
+  <text class="label-small" x="400" y="182">职责：协议解析 + 会话管理 + 请求分发</text>
 
-  <!-- Layer 1: Tool Registry -->
-  <rect class="box" x="740" y="52" width="190" height="80" />
-  <text class="label-bold" x="835" y="78">Tool Registry</text>
-  <text class="label-small" x="835" y="96">17 tools · 5 providers</text>
-  <text class="label-small" x="835" y="110">filesystem · terminal · database</text>
-  <text class="label-small" x="835" y="120">web · llm</text>
+  <!-- Arrow Layer 2 → Layer 3 -->
+  <path class="arrow-down-accent" d="M400,196 L400,216" />
+  <polygon fill="#6366f1" points="395,213 400,223 405,213" />
 
-  <!-- Arrows: Agent → Transport → Kernel → Registry -->
-  <path class="arrow" d="M210,92 L240,92"/>
-  <polygon fill="#30363d" points="237,87 247,92 237,97"/>
-  <path class="arrow-accent" d="M460,92 L490,92"/>
-  <polygon fill="#58a6ff" points="487,87 497,92 487,97"/>
-  <path class="arrow" d="M710,92 L740,92"/>
-  <polygon fill="#30363d" points="737,87 747,92 737,97"/>
+  <!-- ============================================================ -->
+  <!-- Layer 3: Protocol Kernel (Main box) -->
+  <!-- ============================================================ -->
+  <rect class="box-layer" x="60" y="222" width="680" height="140" />
+  <rect class="box-highlight" x="80" y="232" width="640" height="26" />
+  <text class="label-title" x="400" y="245">MCPProtocolHandler（唯一执行入口）</text>
 
-  <!-- Subtitle: Transport protocol notes -->
-  <text class="label-small" x="120" y="145">STDIO: stdin/stdout JSON-RPC</text>
-  <text class="label-small" x="350" y="145">HTTP: REST + SSE streaming</text>
-  <text class="label-small" x="600" y="145">Session Context · Middleware Pipeline</text>
-  <text class="label-small" x="835" y="145">Sandbox isolation · Access control</text>
+  <!-- Middleware Pipeline inside kernel -->
+  <text class="label-layer" x="400" y="270">中间件管道 Middleware Pipeline</text>
+  <rect class="box-module" x="100" y="280" width="110" height="24" /><text class="label-module" x="155" y="292">[Auth] 认证</text>
+  <path class="arrow-down" d="M237,292 L257,292" />
+  <polygon fill="#94a3b8" points="254,287 264,292 254,297" />
+  <rect class="box-module" x="265" y="280" width="110" height="24" /><text class="label-module" x="320" y="292">[RateLimit] 限流</text>
+  <path class="arrow-down" d="M402,292 L422,292" />
+  <polygon fill="#94a3b8" points="419,287 429,292 419,297" />
+  <rect class="box-module" x="430" y="280" width="110" height="24" /><text class="label-module" x="485" y="292">[Audit] 审计</text>
+  <path class="arrow-down" d="M567,292 L587,292" />
+  <polygon fill="#94a3b8" points="584,287 594,292 584,297" />
+  <rect class="box-module" x="595" y="280" width="110" height="24" /><text class="label-module" x="650" y="292">[Cache] 缓存</text>
 
-  <!-- Layer 2: Middleware Pipeline -->
-  <rect class="box" x="120" y="170" width="720" height="48" />
-  <text class="section-title" x="480" y="182">Middleware Pipeline (before / after hooks)</text>
-  <rect class="dot" x="160" y="192" width="80" height="10" /><text class="label-small" x="250" y="197">[Auth] API Key verification</text>
-  <rect class="dot" x="370" y="192" width="80" height="10" /><text class="label-small" x="460" y="197">[RateLimit] Per-key throttling</text>
-  <rect class="dot" x="570" y="192" width="80" height="10" /><text class="label-small" x="660" y="197">[Audit] Logging</text>
-  <rect class="dot" x="740" y="192" width="80" height="10" /><text class="label-small" x="830" y="197">[Cache] Response caching</text>
+  <text class="label-small" x="400" y="328">基础组件：core/types.py · core/exceptions.py · core/structured_log.py</text>
+  <text class="label-small" x="400" y="344">多租户：tenancy.py · security.py · audit.py</text>
 
-  <!-- Arrow down from kernel to pipeline -->
-  <path class="arrow" d="M600,132 L600,170"/><polygon fill="#30363d" points="595,167 600,177 605,167"/>
+  <!-- Arrow Layer 3 → Layer 4 -->
+  <path class="arrow-down" d="M400,362 L400,382" />
+  <polygon fill="#94a3b8" points="395,379 400,389 405,379" />
 
-  <!-- Layer 3: Tools Detail -->
-  <rect class="box" x="30" y="240" width="160" height="105" />
-  <text class="label-bold" x="110" y="258">Filesystem</text>
-  <text class="label-small" x="110" y="275">read_file · write_file</text>
-  <text class="label-small" x="110" y="289">list_dir · search_files</text>
-  <text class="label-small" x="110" y="303">file_stat</text>
-  <text class="label-small" x="110" y="323" fill="#3fb950">✓ Path sandbox</text>
+  <!-- ============================================================ -->
+  <!-- Layer 4: Tool Layer (ToolRegistry + Providers) -->
+  <!-- ============================================================ -->
+  <rect class="box-layer" x="60" y="388" width="680" height="136" />
+  <rect class="box-highlight" x="80" y="398" width="640" height="24" />
+  <text class="label-title" x="400" y="410">ToolRegistry · 5 个工具提供者 · 17 个工具</text>
 
-  <rect class="box" x="210" y="240" width="130" height="105" />
-  <text class="label-bold" x="275" y="258">Terminal</text>
-  <text class="label-small" x="275" y="275">run_command</text>
-  <text class="label-small" x="275" y="289">sysinfo</text>
-  <text class="label-small" x="275" y="323" fill="#3fb950">✓ Command whitelist</text>
+  <!-- Tool providers -->
+  <rect class="box-tool" x="80" y="434" width="116" height="78" />
+  <text class="label-module" x="138" y="448">filesystem</text>
+  <text class="label-tool" x="138" y="464">read_file</text>
+  <text class="label-tool" x="138" y="476">write_file</text>
+  <text class="label-tool" x="138" y="488">list_dir</text>
+  <text class="label-tool" x="138" y="500">search_files</text>
+  <text class="label-tool" x="138" y="508">file_stat</text>
 
-  <rect class="box" x="360" y="240" width="130" height="105" />
-  <text class="label-bold" x="425" y="258">Database</text>
-  <text class="label-small" x="425" y="275">query · execute</text>
-  <text class="label-small" x="425" y="289">list_tables</text>
-  <text class="label-small" x="425" y="303">describe_table</text>
-  <text class="label-small" x="425" y="323" fill="#3fb950">✓ SQL injection guard</text>
+  <rect class="box-tool" x="210" y="434" width="100" height="78" />
+  <text class="label-module" x="260" y="448">terminal</text>
+  <text class="label-tool" x="260" y="466">run_command</text>
+  <text class="label-tool" x="260" y="480">sysinfo</text>
 
-  <rect class="box" x="510" y="240" width="130" height="105" />
-  <text class="label-bold" x="575" y="258">Web</text>
-  <text class="label-small" x="575" y="275">web_fetch · web_api</text>
-  <text class="label-small" x="575" y="289">json_query</text>
-  <text class="label-small" x="575" y="323" fill="#3fb950">✓ URL validation</text>
+  <rect class="box-tool" x="324" y="434" width="100" height="78" />
+  <text class="label-module" x="374" y="448">database</text>
+  <text class="label-tool" x="374" y="464">query</text>
+  <text class="label-tool" x="374" y="476">execute</text>
+  <text class="label-tool" x="374" y="488">list_tables</text>
+  <text class="label-tool" x="374" y="500">describe_table</text>
 
-  <rect class="box" x="660" y="240" width="160" height="105" />
-  <text class="label-bold" x="740" y="258">LLM (Ollama)</text>
-  <text class="label-small" x="740" y="275">llm_call · llm_ping</text>
-  <text class="label-small" x="740" y="289">llm_list_models</text>
-  <text class="label-small" x="740" y="323" fill="#f85149">⚠ Fault isolation</text>
+  <rect class="box-tool" x="438" y="434" width="100" height="78" />
+  <text class="label-module" x="488" y="448">web</text>
+  <text class="label-tool" x="488" y="464">web_fetch</text>
+  <text class="label-tool" x="488" y="476">web_api</text>
+  <text class="label-tool" x="488" y="488">json_query</text>
 
-  <!-- Arrow down from pipeline to tools -->
-  <path class="arrow" d="M480,218 L480,240"/><polygon fill="#30363d" points="475,237 480,247 485,237"/>
+  <rect class="box-tool" x="552" y="434" width="168" height="78" />
+  <text class="label-module" x="636" y="448">llm (Ollama)</text>
+  <text class="label-tool" x="636" y="464">llm_call</text>
+  <text class="label-tool" x="636" y="476">llm_ping</text>
+  <text class="label-tool" x="636" y="488">llm_list_models</text>
 
-  <!-- Layer 4: Local Resources -->
-  <rect class="box" x="140" y="365" width="680" height="40" />
-  <text class="label-bold" x="480" y="385">Local Resources (Sandboxed)</text>
-  <text class="label-small" x="300" y="395">File system (path whitelist)</text>
-  <text class="label-small" x="480" y="395">Shell (command control)</text>
-  <text class="label-small" x="660" y="395">SQLite / MySQL (query guard)</text>
-  <text class="label-small" x="820" y="395">Ollama (fault isolation)</text>
+  <!-- Arrow Layer 4 → Layer 5 -->
+  <path class="arrow-down" d="M400,524 L400,544" />
+  <polygon fill="#94a3b8" points="395,541 400,551 405,541" />
 
-  <!-- Arrow from tools to resources -->
-  <path class="arrow" d="M480,345 L480,365"/><polygon fill="#30363d" points="475,362 480,372 485,362"/>
+  <!-- ============================================================ -->
+  <!-- Layer 5: Local Resources -->
+  <!-- ============================================================ -->
+  <rect class="box-layer" x="80" y="550" width="640" height="56" />
+  <text class="label-layer" x="400" y="558">本地资源（沙箱隔离）</text>
+  <text class="label-small" x="160" y="580">文件系统</text>
+  <text class="label-small" x="300" y="580">终端进程</text>
+  <text class="label-small" x="440" y="580">SQLite / MySQL</text>
+  <text class="label-small" x="580" y="580">Ollama 推理</text>
 
-  <!-- Footer -->
-  <text x="30" y="430" fill="#3fb950" font-size="11" font-weight="bold">Security:</text>
-  <text x="30" y="446" fill="#8b949e" font-size="10">Multi-tenant API Keys · Path traversal protection · Command syntax filtering · Parameterized queries</text>
+  <!-- Arrow Layer 5 → Layer 6 -->
+  <path class="arrow-down" d="M400,606 L400,626" />
+  <polygon fill="#94a3b8" points="395,623 400,633 405,623" />
 
-  <text x="30" y="465" fill="#d29922" font-size="11" font-weight="bold">Multi-Tenancy:</text>
-  <text x="30" y="478" fill="#8b949e" font-size="10">admin (full access) · dify_default (Dify tools) · ollama_local (Ollama inference)</text>
+  <!-- ============================================================ -->
+  <!-- Layer 6: Security (bottom) -->
+  <!-- ============================================================ -->
+  <rect class="box-layer" x="60" y="632" width="680" height="70" />
+  <text class="label-layer" x="400" y="640">安全保障（贯穿全链路）</text>
+  <rect class="box-security" x="80" y="652" width="200" height="38" />
+  <text class="label-security" x="180" y="662">认证 &amp; 鉴权</text>
+  <text class="label-small" x="180" y="678">API Key + 多租户</text>
+  <rect class="box-security" x="300" y="652" width="200" height="38" />
+  <text class="label-security" x="400" y="662">路径隔离</text>
+  <text class="label-small" x="400" y="678">白名单 + 规范化</text>
+  <rect class="box-security" x="520" y="652" width="200" height="38" />
+  <text class="label-security" x="620" y="662">命令管控</text>
+  <text class="label-small" x="620" y="678">Shell 注入拦截</text>
+
 </svg>

@@ -322,6 +322,7 @@ class TestEdgeCases:
         with pytest.raises(ToolExecutionError, match="too long|Command too long"):
             await term_provider.call_tool("run_command", {"command": very_long})
 
+    @pytest.mark.skipif(os.name != "nt", reason="Windows-specific: working directory check")
     @pytest.mark.asyncio
     async def test_working_dir_outside_workspace(self, term_provider):
         """工作目录超出 workspace 应被拦截。"""

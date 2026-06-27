@@ -42,7 +42,7 @@ server:
 mcp:
   protocol_version: "2024-11-05"
   server_name: "mcp-tool-gateway"
-  server_version: "3.0.0"
+  server_version: "2.0.0"
   transport: "streamable-http"  # streamable-http | sse | stdio
   stateless: false              # 无状态模式（适合 Serverless）
   
