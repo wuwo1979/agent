@@ -103,10 +103,20 @@ class ToolDefinition:
 
     def to_mcp_format(self) -> Dict[str, Any]:
         """Convert to MCP standard format (for tools/list response)."""
+        schema = dict(self.inputSchema)
+        # JSON Schema 标准化: 拒绝未定义参数, 确保适当约束
+        schema.setdefault("additionalProperties", False)
+        # 为 string 类型必填字段添加 minLength 约束
+        if "required" in schema and "properties" in schema:
+            for prop_name in schema["required"]:
+                prop = schema["properties"].get(prop_name, {})
+                if prop.get("type") == "string" and "minLength" not in prop:
+                    # 仅在 description 为空字符串时也约束，避免 ' 等空值
+                    prop["minLength"] = 1
         return {
             "name": self.name,
             "description": self.description,
-            "inputSchema": self.inputSchema,
+            "inputSchema": schema,
         }
 
     def to_full_format(self) -> Dict[str, Any]:

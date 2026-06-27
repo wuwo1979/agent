@@ -26,6 +26,7 @@ env/
 *~
 .DS_Store
 Thumbs.db
+Desktop.ini
 
 # Testing
 .pytest_cache/
@@ -70,10 +71,6 @@ docs/知识点速记手册/
 docs/简答模板/
 docs/算法错题本/
 docs/AI_Agent_岗位技能图谱.md
-# OS
-.DS_Store
-Thumbs.db
-Desktop.ini
 
 # MyPy
 .mypy_cache/
@@ -83,9 +80,21 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# PyCharm
-.idea/
-
 # Benchmark reports
 tests/benchmark_report.json
 demo_data/
+
+# Ruff cache
+.ruff_cache/
+
+# Ollama runtime files
+.ollama_cpu_pid
+
+# ChromaDB data
+chroma_db/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db

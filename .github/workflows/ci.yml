@@ -63,10 +63,15 @@ jobs:
       - name: Lint with ruff
         run: |
           ruff check . --select=E,F,W --ignore=E501
+          echo "ruff gate: PASSED"
+
+      - name: Verify imports + security checks
+        run: |
+          python tests/verify_imports.py
 
       - name: Run unit tests (core only, no optional deps)
         run: |
-          python -m pytest tests/test_mcp.py tests/test_integration.py -v --tb=short --cov=. --cov-report=term-missing || echo "some tests may need optional deps"
+          python -m pytest tests/test_mcp.py tests/test_integration.py tests/test_scenarios.py -v --tb=short --cov=. --cov-report=term-missing || echo "some tests may need optional deps"
 
   docker:
     runs-on: ubuntu-latest

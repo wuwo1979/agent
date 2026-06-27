@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "mcp-tool-gateway": {
+      "type": "stdio",
+      "command": "python",
+      "args": [
+        "-m",
+        "mcp_gateway.server",
+        "--mode",
+        "stdio"
+      ],
+      "env": {
+        "MCP_WORKSPACE": "${workspaceFolder}",
+        "MCP_FS_SAFE_ROOTS": "${workspaceFolder};${userHome}",
+        "MCP_LOG_LEVEL": "INFO",
+        "MCP_TERMINAL_USE_WHITELIST": "true"
+      },
+      "description": "MCP 本地工具网关 - 提供文件系统、终端命令等工具调用能力"
+    }
+  }
+}

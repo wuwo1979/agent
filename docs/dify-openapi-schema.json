@@ -1,0 +1,336 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "MCP 本地工具网关 - Dify 自定义工具接口",
+    "description": "通过 MCP 网关调用本地工具（文件读写、终端命令、系统信息等），可直接在 Dify「工具 - 自定义工具」中导入使用。",
+    "version": "3.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://host.docker.internal:9090",
+      "description": "MCP 网关（Docker 内 Dify 访问宿主机）"
+    }
+  ],
+  "paths": {
+    "/api/v1/tools/list": {
+      "get": {
+        "summary": "获取工具列表",
+        "description": "返回所有可用工具的列表，包含名称、描述和参数 Schema。",
+        "operationId": "listTools",
+        "responses": {
+          "200": {
+            "description": "工具列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tools": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ToolDefinition"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tools/call": {
+      "post": {
+        "summary": "调用工具",
+        "description": "调用指定的工具并返回执行结果。传入工具名称和参数，网关负责调度和执行。",
+        "operationId": "callTool",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "arguments"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "工具名称，如 fs_read_file、term_run_command"
+                  },
+                  "arguments": {
+                    "type": "object",
+                    "description": "工具参数，与对应工具的 inputSchema 一致"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "工具执行结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "type": "object",
+                      "description": "执行结果，包含 content 列表"
+                    },
+                    "is_error": {
+                      "type": "boolean",
+                      "description": "是否执行出错"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "工具执行异常",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ollama/proxy/api/tags": {
+      "get": {
+        "summary": "获取本地模型列表",
+        "description": "通过代理获取 Ollama/llama.cpp 中可用的本地模型列表。",
+        "operationId": "listLocalModels",
+        "responses": {
+          "200": {
+            "description": "模型列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "models": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {"type": "string"},
+                          "modified_at": {"type": "string"},
+                          "size": {"type": "integer"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ollama/proxy/api/generate": {
+      "post": {
+        "summary": "模型生成（非流式）",
+        "description": "调用本地模型进行文本生成。支持 stream=true 参数（SSE 流式响应）。",
+        "operationId": "generateText",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["model", "prompt"],
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "description": "模型名称，如 qwen2.5:7b"
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "description": "输入提示词"
+                  },
+                  "stream": {
+                    "type": "boolean",
+                    "description": "是否启用 SSE 流式输出（Dify 推荐启用）",
+                    "default": false
+                  },
+                  "options": {
+                    "type": "object",
+                    "description": "模型参数（temperature, top_p, max_tokens 等）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "生成结果（非流式）或 SSE 事件流（流式）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "model": {"type": "string"},
+                    "response": {"type": "string"},
+                    "done": {"type": "boolean"}
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "GPU/模型异常",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ollama/proxy/api/chat": {
+      "post": {
+        "summary": "模型对话",
+        "description": "调用本地模型进行多轮对话。支持 stream=true 参数（SSE 流式响应）。",
+        "operationId": "chatWithModel",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["model", "messages"],
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "description": "模型名称"
+                  },
+                  "messages": {
+                    "type": "array",
+                    "description": "对话消息列表",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "role": {
+                          "type": "string",
+                          "enum": ["system", "user", "assistant"],
+                          "description": "消息角色"
+                        },
+                        "content": {
+                          "type": "string",
+                          "description": "消息内容"
+                        }
+                      }
+                    }
+                  },
+                  "stream": {
+                    "type": "boolean",
+                    "description": "是否启用 SSE 流式输出",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "对话响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "model": {"type": "string"},
+                    "message": {
+                      "type": "object",
+                      "properties": {
+                        "role": {"type": "string"},
+                        "content": {"type": "string"}
+                      }
+                    },
+                    "done": {"type": "boolean"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ToolDefinition": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "工具唯一名称"
+          },
+          "description": {
+            "type": "string",
+            "description": "工具功能描述"
+          },
+          "inputSchema": {
+            "type": "object",
+            "description": "工具参数 Schema（JSON Schema 格式）"
+          },
+          "category": {
+            "type": "string",
+            "description": "工具分类（filesystem/terminal/database/custom）"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "标准化错误码，如 GPU_CRASH、MODEL_NOT_FOUND、TIMEOUT"
+              },
+              "message": {
+                "type": "string",
+                "description": "人类可读的错误描述"
+              },
+              "ollama_raw": {
+                "type": "string",
+                "description": "Ollama 原始错误信息（用于调试）"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

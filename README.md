@@ -1,3 +1,6 @@
+> **MCP Agent Gateway v2.0** — 一个让 AI Agent（Trae / Dify / Cursor）安全操控本地环境的 MCP 网关。
+> 核心亮点：(1) **协议内核统一 + 传输层薄适配**，单套 JSON-RPC 内核同时服务 STDIO 和 HTTP；(2) **Ollama 故障隔离**，单模型崩溃不会影响网关工具调用能力；(3) **Dify 原生适配**，自动生成 OpenAPI Schema 一键导入，无需手动配 HTTP 节点。
+
 <p align="center">
   <h1 align="center">MCP Agent Gateway v2.0</h1>
   <p align="center">
@@ -10,7 +13,7 @@
   <img src="https://img.shields.io/badge/version-2.0.0-blue?style=flat-square">
   <img src="https://img.shields.io/badge/python-3.11+-blue?style=flat-square&logo=python">
   <img src="https://img.shields.io/badge/MCP-2024--11--05-green?style=flat-square">
-  <img src="https://img.shields.io/badge/tests-107%20passing-brightgreen?style=flat-square">
+  <img src="https://img.shields.io/badge/tests-108%20passing-brightgreen?style=flat-square">
   <img src="https://img.shields.io/badge/ruff-0%20errors-brightgreen?style=flat-square">
   <img src="https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square">
   <img src="https://img.shields.io/badge/Trae-Ready-blue?style=flat-square">
@@ -120,7 +123,7 @@ curl -X POST http://localhost:9090/mcp \
 
 | 平台 | 方式 | 验证状态 | 说明 |
 |------|------|----------|------|
-| **Trae IDE** | STDIO (MCP) | ✅ 通过 | 标准 MCP 配置，可调全部 18+ 工具 |
+| **Trae IDE** | STDIO (MCP) | ✅ 通过 | 标准 MCP 配置，可调全部 17 工具 |
 | **Dify** | HTTP REST API | ✅ 通过 | 自定义工具节点，自动发现工具列表 |
 | **Cursor** | STDIO / HTTP (MCP) | ✅ 兼容 | 同上，支持 setup_mcp.py 一键配置 |
 | **VS Code** | STDIO / HTTP (MCP) | ✅ 兼容 | 通过 MCP 插件接入 |
@@ -136,7 +139,7 @@ python -m pytest tests/test_scenarios.py -v
 # 结果:
 # tests/test_scenarios.py::test_stdio_mode PASSED  [Trae IDE 场景]
 # tests/test_scenarios.py::test_http_mode  PASSED  [Dify 平台场景]
-# ============================= 107 passed in 3.67s =============================
+# ============================= 108 passed in 3.67s =============================
 ```
 
 **Trae IDE STDIO 模式验证流程：**
@@ -213,7 +216,7 @@ python main.py --demo
 | **web** | `web_fetch`, `web_api`, `json_query` | HTTP/HTTPS + 超时 |
 | **llm** | `llm_call`, `llm_ping`, `llm_list_models` | Ollama 本地推理 |
 
-全部 18+ 工具：`python main.py --demo`
+全部 17 工具：`python main.py --demo`
 
 ---
 
@@ -242,7 +245,7 @@ LLM/
 ├── performance/              # 缓存 + 并行调度
 ├── config/                   # YAML 配置
 ├── requirements/             # 依赖管理
-├── tests/                    # 107 个测试
+├── tests/                    # 108 个测试
 │   ├── test_scenarios.py     # Trae+Dify 双场景端到端验证
 │   ├── test_integration.py   # 集成测试
 │   ├── test_mcp.py           # 协议层单元测试
@@ -259,7 +262,7 @@ LLM/
 ## 测试
 
 ```bash
-pytest                              # 全部 107 个测试
+pytest                              # 全部 108 个测试
 pytest tests/test_scenarios.py -v   # 双场景验证
 python tests/verify_imports.py      # 导入 + 安全校验
 ruff check . --select=E,F,W --ignore=E501  # 代码风格
