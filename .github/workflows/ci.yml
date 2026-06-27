@@ -13,6 +13,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]
+      fail-fast: false
 
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +30,14 @@ jobs:
           pip install -r requirements/runtime.txt
           pip install -r requirements/dev.txt
 
-      - name: Run tests with coverage
+      - name: Run tests (no coverage, split by file for diagnostics)
+        run: |
+          python -m pytest tests/test_mcp.py -v --tb=long -x
+          python -m pytest tests/test_agent.py -v --tb=long -x
+          python -m pytest tests/test_integration.py -v --tb=long -x
+          python -m pytest tests/test_security.py -v --tb=long -x
+
+      - name: Run tests with coverage (all files)
         run: |
           python -m pytest tests/ -v --tb=short --cov=. --cov-report=xml --cov-report=term-missing
 
