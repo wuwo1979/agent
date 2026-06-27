@@ -1,5 +1,6 @@
 """
 场景验证测试：Trae IDE (STDIO) + Dify (HTTP REST) 双场景测试
+注意：本文件需作为独立脚本运行，不会被 pytest 自动发现（避免 CI 中子进程集成测试超时）。
 
 Usage:
     python tests/test_scenarios.py --stdio     # 测试 Trae IDE STDIO 模式
@@ -15,6 +16,9 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+
+# 标记为非 pytest 测试模块
+__test__ = False
 
 
 # ═══════════════════════════════════════════════════════════════════

@@ -88,6 +88,7 @@ class TestPathTraversal:
 class TestWindowsPathBypass:
     """Windows 特有路径绕过手段。"""
 
+    @pytest.mark.skipif(os.name != "nt", reason="Windows-specific: case-insensitive path test")
     @pytest.mark.asyncio
     async def test_case_variation(self, fs_provider):
         """大小写变形绕过（Windows 路径大小写不敏感）。"""

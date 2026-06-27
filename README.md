@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/version-2.0.0-blue?style=flat-square">
   <img src="https://img.shields.io/badge/python-3.11+-blue?style=flat-square&logo=python">
   <img src="https://img.shields.io/badge/MCP-2024--11--05-green?style=flat-square">
-  <img src="https://img.shields.io/badge/tests-164%20passing-brightgreen?style=flat-square">
+  <img src="https://img.shields.io/badge/tests-161%20passed-brightgreen?style=flat-square">
   <img src="https://img.shields.io/badge/security-56%20tests%20passed-yellow?style=flat-square">
   <img src="https://img.shields.io/badge/ruff-0%20errors-brightgreen?style=flat-square">
   <img src="https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square">
@@ -29,7 +29,7 @@
    pip install -r requirements/runtime.txt
    ```
 
-2. 启动网关服务（默认 HTTP 模式，端口 19090）：
+2. 启动网关服务（默认 HTTP 模式，端口 9090）：
 
    ```bash
    python main.py
@@ -40,13 +40,13 @@
    健康检查：
 
    ```bash
-   curl.exe -s http://localhost:19090/api/v1/health
+   curl.exe -s http://localhost:9090/api/v1/health
    ```
 
    列出所有工具：
 
    ```bash
-   curl.exe -X POST http://localhost:19090/mcp \
+   curl.exe -X POST http://localhost:9090/mcp \
      -H "Content-Type: application/json" \
      -d '{"jsonrpc":"2.0","id":"1","method":"tools/list","params":{}}'
    ```
@@ -112,11 +112,11 @@ AI Agent（Trae、Dify、Cursor 等）与本地环境交互时面临三重障碍
 
 ### HTTP 模式
 
-供 Dify / curl / 浏览器调用，默认端口 19090。
+供 Dify / curl / 浏览器调用，默认端口 9090。
 
 ```bash
-python main.py                                    # localhost:19090
-python main.py --host 0.0.0.0 --port 19090        # 监听所有网卡
+python main.py                                    # localhost:9090
+python main.py --host 0.0.0.0 --port 9090        # 监听所有网卡
 python main.py --config config/myconfig.yaml       # 自定义配置
 ```
 
@@ -153,7 +153,7 @@ python main.py --status
   MCP Agent Gateway — 状态一览
 ═══════════════════════════════════════════════
   服务状态    ● healthy
-  HTTP 端口  19090
+  HTTP 端口  9090
   已注册工具  17
   缓存大小    0.00 MB
   缓存命中率  0.0%
@@ -189,7 +189,7 @@ python main.py --status
 
 在「自定义工具」中导入 OpenAPI Schema：
 
-- Schema URL：`http://localhost:19090/api/v1/openapi.json`
+- Schema URL：`http://localhost:9090/api/v1/openapi.json`
 - 认证方式：`X-API-Key` 请求头
 
 <p align="center">
@@ -340,7 +340,7 @@ LLM/
 │   ├── exceptions.py          # 统一异常体系
 │   └── structured_log.py      # 结构化 JSON 日志 + request_id 追踪
 ├── config/                    # YAML 配置（带注释模板）
-├── tests/                     # 164 个测试（含 56 安全专项）
+├── tests/                     # 162 个测试（161 passed + 1 skipped，含 56 安全专项）
 ├── docs/                      # 文档 + 截图 + 架构图 + 性能图表
 └── scripts/                   # 工具脚本
 ```
@@ -349,9 +349,9 @@ LLM/
 
 ## 质量保障
 
-- 全部测试：`pytest`（164 passed）
+- 全部测试：`pytest`（161 passed, 1 skipped）
 - 安全专项：`pytest tests/test_security.py -v`（56 passed）
-- 端到端验证：`pytest tests/test_scenarios.py -v`
+- 端到端验证：`python tests/test_scenarios.py --all`
 - 代码风格：`ruff check .`（0 errors）
 - 冒烟测试：`python docs/smoke_test.py`
 

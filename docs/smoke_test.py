@@ -7,7 +7,7 @@ import json
 import sys
 import urllib.request
 
-BASE = "http://localhost:19090"
+BASE = "http://localhost:9090"
 ADMIN_KEY = "admin-key-001"
 results = []
 
@@ -26,7 +26,7 @@ def api_get(path):
     return json.loads(r.read())
 
 def api_post(path, body, headers=None):
-    conn = http.client.HTTPConnection("localhost", 19090, timeout=30)
+    conn = http.client.HTTPConnection("localhost", 9090, timeout=30)
     default_headers = {"Content-Type": "application/json", "X-API-Key": ADMIN_KEY}
     if headers:
         default_headers.update(headers)
