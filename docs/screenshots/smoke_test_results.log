@@ -1,0 +1,38 @@
+MCP Gateway v2.0 — 全场景冒烟测试结果
+========================================
+时间: 2026-06-27
+状态: ✅ 全部 7 项验证通过
+
+场景 1: 系统状态验证
+- ✅ GET /api/v1/health → status: healthy
+- ✅ GET /api/v1/stats → 运行统计正常
+
+场景 2: Dify HTTP REST API 模式
+- ✅ POST /api/v1/tools/list → 17 个工具 (read_file, write_file, list_dir, search_files, file_stat, run_command, sysinfo, query, execute, list_tables, describe_table, web_fetch, web_api, json_query, llm_call, llm_list_models, llm_ping)
+- ✅ POST /api/v1/tools/call read_file → 成功读取源文件
+- ✅ GET /api/v1/openapi.json → OpenAPI 3.0.3 Schema (17 paths)
+- ✅ OpenAPI 兼容 Dify 自定义工具一键导入
+
+场景 3: Ollama 代理 — 故障隔离验证
+- ✅ GET /api/v1/ollama/health → unavailable (Ollama 未启动)
+- ✅ 网关返回标准化错误码，故障隔离生效，其他功能正常
+- ✅ POST /api/v1/tools/call llm_ping → 标准化错误响应 (is_error: true, 含具体错误信息)
+
+场景 4: MCP JSON-RPC 协议 — Trae IDE 兼容模式
+- ✅ POST /mcp initialize → MCP 协议握手成功 (protocolVersion: 2024-11-05)
+- ✅ POST /mcp tools/list → 17 个工具发现
+- ✅ POST /mcp tools/call web_fetch → 成功调用 (httpbin.org/get, 200 OK)
+
+验证总结:
+  1. ✅ Health 端点
+  2. ✅ 工具列表 >= 15
+  3. ✅ REST read_file调用
+  4. ✅ OpenAPI Schema
+  5. ✅ MCP 初始化
+  6. ✅ MCP 工具列表
+  7. ✅ MCP web_fetch调用
+
+截图素材:
+  - docs/screenshots/dify_openapi_schema.png — Dify OpenAPI Schema 界面
+  - docs/screenshots/openapi_tools_list.png — 工具列表 (17 个工具)
+  - docs/screenshots/status_dashboard.png — 运行监控仪表盘

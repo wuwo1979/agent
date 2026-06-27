@@ -189,6 +189,9 @@ security:
     api_key_header: "X-API-Key"
     api_keys:
       - "mcp-gateway-dev-key-change-in-production"
+      - "admin-key-001"
+      - "dify-key-001"
+      - "ollama-key-001"
   
   rate_limit:
     enabled: true
