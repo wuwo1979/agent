@@ -27,6 +27,7 @@ from typing import Optional
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config.loader import ConfigLoader
+from core.structured_log import set_request_id, setup_structured_logging
 from core.types import JSONRPCRequest
 from mcp_gateway.api import ExternalAPIHandler, create_api_routes
 from mcp_gateway.audit import AuditLogger
@@ -49,11 +50,8 @@ from mcp_gateway.workspace import (
     get_workspace,
 )
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[logging.StreamHandler()]
-)
+# 结构化 JSON 日志（stderr），每条日志带 request_id
+setup_structured_logging()
 logger = logging.getLogger("mcp_gateway.server")
 
 
@@ -235,6 +233,8 @@ class MCPServer:
         # Create transport bridge — 统一通过协议内核 handle_request 入口
         async def protocol_handler(method: str, params: dict, session) -> dict:
             """桥接层：传输层 → 协议内核 handle_request()（唯一执行入口）。"""
+            # 为每个请求生成 request_id，贯穿全链路
+            set_request_id()
             request = JSONRPCRequest(
                 jsonrpc="2.0",
                 id="req",

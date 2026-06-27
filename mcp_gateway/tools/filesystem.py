@@ -208,8 +208,10 @@ class FilesystemToolProvider(BaseToolProvider):
         7. 解析符号链接 / 挂载点 → 真实路径
         8. 大小写不敏感前缀匹配白名单（Windows，带分隔符后缀防护）
         """
-        # 0. 拒绝空路径
-        if not path or not path.strip():
+        # 0. 拒绝空路径 / 非字符串路径
+        if not isinstance(path, str):
+            raise PermissionDeniedError("path", f"Path must be a string, got {type(path).__name__}")
+        if not path.strip():
             raise PermissionDeniedError("path", "Empty path is not allowed")
 
         # 1. 拒绝 Windows 设备路径（保留名，如 CON, NUL, COM1, LPT1）

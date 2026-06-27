@@ -1,19 +1,16 @@
-> **MCP Agent Gateway v2.0** — 一个让 AI Agent（Trae / Dify / Cursor）安全操控本地环境的 MCP 网关。
-> 核心亮点：(1) **协议内核统一 + 传输层薄适配**，单套 JSON-RPC 内核同时服务 STDIO 和 HTTP；(2) **Ollama 故障隔离**，单模型崩溃不会影响网关工具调用能力；(3) **Dify 原生适配**，自动生成 OpenAPI Schema 一键导入，无需手动配 HTTP 节点。
+# MCP Agent Gateway
 
 <p align="center">
-  <h1 align="center">MCP Agent Gateway v2.0</h1>
-  <p align="center">
-    <b>协议内核统一 + 传输层薄适配 + 可插拔中间件管道</b><br>
-    让 AI Agent 直接操控本地环境的 MCP 网关
-  </p>
+  <b>统一 JSON-RPC 协议内核 · 传输层薄适配 · 可插拔中间件管道</b><br>
+  让 AI Agent（Trae / Dify / Cursor）安全操控本地环境的 MCP 网关
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-2.0.0-blue?style=flat-square">
   <img src="https://img.shields.io/badge/python-3.11+-blue?style=flat-square&logo=python">
   <img src="https://img.shields.io/badge/MCP-2024--11--05-green?style=flat-square">
-  <img src="https://img.shields.io/badge/tests-107%20passing-brightgreen?style=flat-square">
+  <img src="https://img.shields.io/badge/tests-164%20passing-brightgreen?style=flat-square">
+  <img src="https://img.shields.io/badge/security-56%20tests%20passed-yellow?style=flat-square">
   <img src="https://img.shields.io/badge/ruff-0%20errors-brightgreen?style=flat-square">
   <img src="https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square">
   <img src="https://img.shields.io/badge/Trae-Ready-blue?style=flat-square">
@@ -23,366 +20,355 @@
 
 ---
 
-## 界面速览
+## 快速开始
 
-> 以下全部截图来自实测运行环境，非 AI 生成概念图。完整烟测日志：[docs/screenshots/smoke_test_results.log](docs/screenshots/smoke_test_results.log)
+1. 克隆项目并安装依赖：
 
-<table>
-  <tr>
-    <td align="center" width="50%">
-      <img src="docs/screenshots/status_dashboard.png" width="90%" alt="状态仪表盘"><br>
-      <sub><b>✦ 状态仪表盘</b> — 一键确认服务健康、模块状态、工具注册</sub>
-    </td>
-    <td align="center" width="50%">
-      <img src="docs/screenshots/mcp_tools_list.png" width="90%" alt="工具列表"><br>
-      <sub><b>✦ Trae 工具列表</b> — MCP 协议发现 17 个工具，IDE 侧边栏加载即用</sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="50%">
-      <img src="docs/screenshots/dify_openapi_schema.png" width="90%" alt="Dify Schema"><br>
-      <sub><b>✦ Dify OpenAPI Schema</b> — 自动生成，Dify 内一键导入所有工具</sub>
-    </td>
-    <td align="center" width="50%">
-      <img src="docs/assets/performance_chart.png" width="90%" alt="性能指标"><br>
-      <sub><b>✦ 性能基准</b> — 缓存命中 78%，并行吞吐量 2.9x 提升</sub>
-    </td>
-  </tr>
-</table>
+   ```bash
+   git clone https://github.com/wuwo1979/agent.git && cd agent
+   pip install -r requirements/runtime.txt
+   ```
 
----
+2. 启动网关服务（默认 HTTP 模式，端口 19090）：
 
-## 这个项目解决什么问题？
+   ```bash
+   python main.py
+   ```
 
-AI Agent（如 Trae、Dify、Cursor）在和本地环境交互时面临三重障碍：
+3. 在一个新终端中验证服务是否正常运行：
 
-| 障碍 | 具体表现 | 本项目的解法 |
-|------|----------|------------|
-| **协议割裂** | Trae 用 STDIO MCP，Dify 用 HTTP REST API，两套代码两套维护 | 单套 JSON-RPC 协议内核 + 薄传输层适配，一套代码同时服务两端 |
-| **安全风险** | Agent 能操作文件、执行命令、调数据库，权限控制缺失 | 多租户 API Key 认证 + 路径白名单沙箱 + 工具权限隔离 |
-| **集成成本** | 每个平台都要手动配 HTTP 节点、写接口文档 | Dify 秒级适配：自动生成 OpenAPI Schema 一键导入；Trae 一行配置：JSON 模板复制即用 |
+   健康检查：
 
-简单说：**你只需要启动一个网关，Trae 和 Dify 都能用，而且安全、可控、开箱即用。**
+   ```bash
+   curl.exe -s http://localhost:19090/api/v1/health
+   ```
 
----
+   列出所有工具：
 
-## 30 秒快速启动
+   ```bash
+   curl.exe -X POST http://localhost:19090/mcp \
+     -H "Content-Type: application/json" \
+     -d '{"jsonrpc":"2.0","id":"1","method":"tools/list","params":{}}'
+   ```
 
-```bash
-git clone https://github.com/wuwo1979/agent.git && cd agent
-pip install -r requirements/runtime.txt
-python main.py                                   # 启动网关 (HTTP 模式, 端口 19090)
-```
+<details>
+<summary><b>预期返回（点击展开）</b></summary>
 
-```bash
-# 验证工具列表是否正常返回
-curl.exe -X POST http://localhost:19090/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":"1","method":"tools/list","params":{}}'
-```
-
-**预期返回（部分）：**
+健康检查：
 ```json
 {
-  "jsonrpc": "2.0",
-  "id": "1",
-  "result": {
-    "tools": [
-      {"name": "read_file",    "description": "读取指定文件内容"},
-      {"name": "write_file",   "description": "写入内容到指定文件"},
-      {"name": "list_dir",     "description": "列出目录内容"},
-      {"name": "search_files", "description": "搜索文件"},
-      {"name": "file_stat",    "description": "获取文件状态信息"},
-      {"name": "run_command",  "description": "在终端中执行命令"},
-      {"name": "sysinfo",      "description": "获取系统信息"},
-      {"name": "query",        "description": "执行数据库查询"},
-      {"name": "web_fetch",    "description": "获取网页或 API 内容"},
-      {"name": "llm_call",     "description": "调用本地大语言模型"}
-    ]
+  "status": "healthy",
+  "version": "2.0.0",
+  "server": "MCP Agent Gateway",
+  "tools": 17,
+  "modules": {
+    "mcp": true, "user_tools": true, "filesystem": true,
+    "terminal": true, "database": false, "web": true, "ollama": true
   }
 }
 ```
 
-**验证健康检查：**
-```bash
-curl.exe -s http://localhost:19090/api/v1/health
-# 预期: {"status":"healthy","server":"MCP 本地工具网关","version":"2.0.0","tools":17,...}
+工具列表（部分）：
+```json
+{
+  "result": {
+    "tools": [
+      {"name": "read_file",    "description": "读取指定文件内容"},
+      {"name": "write_file",   "description": "写入内容到指定文件"},
+      {"name": "run_command",  "description": "在终端中执行命令（沙箱保护）"},
+      {"name": "query",        "description": "执行数据库查询"},
+      {"name": "web_fetch",    "description": "获取网页或 API 内容"},
+      {"name": "llm_call",     "description": "调用本地大模型（Ollama）"}
+    ]
+  }
+}
 ```
-
-> 配置模板见 [config/config.example.yaml](config/config.example.yaml)，复制为 `config.yaml` 即可自定义端口、密钥、缓存参数等。
+</details>
 
 ---
 
-## 安全设计
+## 项目定位
 
-网关内置 **三层安全防护**，确保 AI Agent 操作本地环境时可控可审计：
+AI Agent（Trae、Dify、Cursor 等）与本地环境交互时面临三重障碍，网关逐一解决：
 
-| 防护层 | 机制 | 说明 |
-|--------|------|------|
-| **认证 & 鉴权** | API Key（`X-API-Key` 请求头）+ 多租户策略 | 不同接入端使用不同 Key，隔离资源与工具权限 |
-| **路径隔离** | 路径规范化，匹配白名单前缀，杜绝 `../` 目录穿越 | 租户级 `file_whitelist` 配置，越权返回 `-32001` |
-| **命令管控** | 终端命令白名单 + 危险语法模式拦截 | 防止命令注入；数据库查询强制参数化防 SQL 注入 |
+| 障碍 | 表现 | 解法 |
+|------|------|------|
+| **协议割裂** | Trae 用 STDIO，Dify 用 HTTP，两套代码两套维护 | **单协议内核**：`MCPProtocolHandler` 唯一入口，STDIO/HTTP 仅做传输适配 |
+| **安全风险** | Agent 能读写文件、执行命令，权限失控 | **三层防护**：API Key 认证 + 路径沙箱 + 命令拦截，56 项安全测试全部通过 |
+| **集成成本** | 每接入一个平台手动配接口、写文档 | **Dify** 自动生成 OpenAPI Schema 一键导入；**Trae/Cursor** 复制 JSON 配置即用 |
 
-> 详见 [docs/错误码对照表.md](docs/错误码对照表.md) 中的安全相关错误码和排查方法。
-
----
-
-## 实际使用流程
-
-### 场景一：Trae IDE 中使用（STDIO 模式）
-
-```mermaid
-sequenceDiagram
-  participant Trae as Trae IDE
-  participant Gateway as MCP Gateway (STDIO)
-  participant Tools as 本地工具集
-
-  Trae->>Gateway: initialize (JSON-RPC)
-  Gateway->>Trae: serverInfo + capabilities
-  Trae->>Gateway: tools/list
-  Gateway->>Trae: 17 tools (read_file, run_command, ...)
-  Trae->>Gateway: tools/call (read_file, path=xxx)
-  Gateway->>Tools: 路径安全校验 → 读取
-  Tools->>Gateway: 文件内容
-  Gateway->>Trae: JSON-RPC response
-```
-
-**实测效果：** Trae IDE 内可直接让 AI 读写文件、执行命令、查询数据库、调用 Ollama 模型，所有操作受权限控制。
-
-### 场景二：Dify 平台中使用（HTTP REST 模式）
-
-```mermaid
-sequenceDiagram
-  participant Dify as Dify 平台
-  participant Gateway as MCP Gateway (HTTP)
-  participant Tools as 本地工具集
-
-  Dify->>Gateway: 导入 OpenAPI Schema (/api/v1/openapi.json)
-  Gateway->>Dify: 自动生成工具定义
-  Dify->>Gateway: POST /tools/call (X-API-Key + 参数)
-  Gateway->>Tools: 多租户鉴权 → 执行
-  Tools->>Gateway: 结果
-  Gateway->>Dify: JSON 响应
-```
-
-**实测效果：** Dify 内导入 Schema 即可使用所有工具，无需手动配置 HTTP 节点。
-
-### 场景三：Ollama 崩溃了会怎样？
-
-```mermaid
-sequenceDiagram
-  participant Agent as AI Agent
-  participant Gateway as MCP Gateway
-  participant Ollama as Ollama (已崩溃)
-
-  Agent->>Gateway: tools/call (llm_ping)
-  Gateway->>Ollama: 健康检查
-  Ollama--xGateway: 连接失败
-  Gateway->>Agent: 标准错误响应 (code: -32003)
-  Note over Agent,Gateway: ● 网关其他功能(文件/命令/数据库)完全正常
-```
-
-**实测效果：** Ollama 崩溃时返回标准化错误码 `-32003`，不影响网关其他工具调用。
-
----
-
-## 架构设计
+实测运行截图：
 
 <p align="center">
-  <img src="docs/assets/architecture.svg" width="95%" alt="Architecture"><br>
-  <sub>手动绘制线稿架构图 — 严格对应实际代码分层</sub>
+  <img src="docs/screenshots/status_dashboard.png" width="45%" alt="状态仪表盘">
+  <img src="docs/screenshots/mcp_tools_list.png" width="45%" alt="Trae 工具列表">
 </p>
 
-### 协议内核统一
-
-```
-                    ┌──────────────────────────────────────────┐
-                    │         AI Agent  (Trae / Dify / Cursor)  │
-                    └────────┬──────────────┬──────────────────┘
-                             │              │
-                    STDIO    │              │   HTTP REST
-                    (JSON-RPC)│              │   (JSON-RPC)
-                             │              │
-                    ┌────────▼──────────────▼──────────────────┐
-                    │          MCP Transport Layer              │
-                    │    STDIOTransport  │  HTTPTransport       │
-                    └────────┬──────────────┬──────────────────┘
-                             │              │
-                             └──────┬───────┘
-                                    │  JSONRPCRequest
-                    ┌───────────────▼──────────────────────────┐
-                    │        MCPProtocolHandler (唯一执行入口)    │
-                    │                                          │
-                    │  ┌─────────────────────────────────┐     │
-                    │  │   Middleware Pipeline             │     │
-                    │  │  before: [Auth] → [RateLimit]    │     │
-                    │  │  core:  [ToolExecutor]           │     │
-                    │  │  after: [Audit] → [Cache]        │     │
-                    │  └─────────────────────────────────┘     │
-                    │                                          │
-                    │  ┌─────────────────────────────────┐     │
-                    │  │   ToolRegistry (17 tools)        │     │
-                    │  │  Filesystem │ Terminal │ DB      │     │
-                    │  │  Web        │ LLM      │         │     │
-                    │  └─────────────────────────────────┘     │
-                    └───────────────┬──────────────────────────┘
-                                    │
-                    ┌───────────────▼──────────────────────────┐
-                    │          本地资源 (沙箱安全)               │
-                    │  文件系统 │ 终端Shell │ 数据库 │ Ollama   │
-                    └──────────────────────────────────────────┘
-```
-
-### 升级亮点 (v1.3 → v2.0)
-
-| 维度 | v1.3 (旧) | v2.0 (新) |
-|------|-----------|-----------|
-| **执行入口** | 两条路径：API 直接调 registry + ProtocolHandler 独立处理 | 唯一入口：`MCPProtocolHandler.handle_request()` |
-| **中间件** | 无 | 可插拔管道：Auth → RateLimit → Audit → Cache |
-| **错误码** | 自定义 | JSON-RPC 2.0 标准 |
-| **Ollama 故障** | 无隔离，崩溃波及整个网关 | 故障隔离，单模型崩溃不影响其他工具 |
-| **Dify 集成** | 手动配 HTTP 节点 | 自动生成 OpenAPI Schema 一键导入 |
-| **会话管理** | 无跨传输共享 | SessionContext 统一跨 STDIO/HTTP |
-| **可观测性** | 无统一指标 | 协议内核统一收集，stats 端点 |
-
 ---
 
-## 内置工具一览
+## 运行模式
 
-| Provider | 工具 | 安全措施 | 适用场景 |
-|----------|------|---------|---------|
-| **filesystem** | `read_file`, `write_file`, `list_dir`, `search_files`, `file_stat` | 路径沙箱 + 白名单 | 读写项目文件、搜索代码、管理资源 |
-| **terminal** | `run_command`, `sysinfo` | 命令白名单 + 危险语法拦截 | 执行编译/测试命令、获取系统信息 |
-| **database** | `query`, `execute`, `list_tables`, `describe_table` | 参数化查询防 SQL 注入 | 查数据库、执行迁移、分析数据 |
-| **web** | `web_fetch`, `web_api`, `json_query` | URL 校验 + 超时控制 | 爬取网页、调用 API、解析 JSON |
-| **llm** | `llm_call`, `llm_ping`, `llm_list_models` | 故障隔离 + 健康检查 | 本地推理、检查 Ollama 状态 |
+所有运行模式通过 `main.py` 参数切换。
 
-全部 17 个工具：`python main.py --demo`（自动跑完所有类型工具调用）
+### HTTP 模式
 
----
-
-## 生态适配
-
-| 平台 | 方式 | 验证状态 | 一句话说明 |
-|------|------|----------|-----------|
-| **Trae IDE** | STDIO (MCP) | ✅ 通过 | 标准 MCP 配置，可调全部 17 工具 |
-| **Dify** | HTTP REST API | ✅ 通过 | 导入 OpenAPI Schema 一键注册所有工具 |
-| **Cursor** | STDIO / HTTP | ✅ 兼容 | 支持 setup_mcp.py 一键配置 |
-| **VS Code** | STDIO / HTTP | ✅ 兼容 | 通过 MCP 插件接入 |
-| **Ollama** | REST API | ✅ 通过 | 内置 llm_call / llm_ping / llm_list_models |
-| **curl / HTTP** | REST / MCP | ✅ 通过 | 任意语言直接调用 |
-
----
-
-## 运行方式
+供 Dify / curl / 浏览器调用，默认端口 19090。
 
 ```bash
-# HTTP 模式 —— 供 Dify / 浏览器 / curl 调用
-python main.py --host 0.0.0.0 --port 19090
+python main.py                                    # localhost:19090
+python main.py --host 0.0.0.0 --port 19090        # 监听所有网卡
+python main.py --config config/myconfig.yaml       # 自定义配置
+```
 
-# STDIO 模式 —— 供 Trae / Cursor / VS Code 调用
+### STDIO 模式
+
+供 Trae / Cursor / VS Code 调用，使用标准 MCP STDIO 协议（Content-Length 帧头格式），兼容官方 MCP SDK。
+
+```bash
 python main.py --mode stdio
+```
 
-# 全自动演示 —— 注册工具 → 调用各类型 → 展示性能
+日志输出到 stderr，格式见下方「结构化日志」一节。
+
+### 全自动演示
+
+自动启动网关 → 注册工具 → 依次调用 5 类工具（文件 / 终端 / 数据库 / Web / LLM）→ 输出执行结果和性能数据。一条命令看完整效果。
+
+```bash
 python main.py --demo
+```
 
-# 状态监控 —— 确认所有模块健康
+### 状态监控
+
+一键输出服务健康、端口、工具数量、缓存状态：
+
+```bash
 python main.py --status
 ```
 
-### 集成到各平台
+输出示例：
 
-**Trae / Cursor**：在 MCP 设置中添加：
+```
+═══════════════════════════════════════════════
+  MCP Agent Gateway — 状态一览
+═══════════════════════════════════════════════
+  服务状态    ● healthy
+  HTTP 端口  19090
+  已注册工具  17
+  缓存大小    0.00 MB
+  缓存命中率  0.0%
+═══════════════════════════════════════════════
+```
+
+---
+
+## 平台接入
+
+### Trae / Cursor 接入
+
+在 MCP 设置中添加如下配置：
 
 ```json
 {
   "mcpServers": {
     "agent-mcp-gateway": {
       "command": "python",
-      "args": ["<项目路径>/main.py", "--mode", "stdio"],
-      "env": {"MCP_API_KEY": "your-key", "MCP_WORKSPACE": "<项目路径>"}
+      "args": ["F:/项目路径/main.py", "--mode", "stdio"],
+      "env": {
+        "MCP_API_KEY": "your-api-key",
+        "MCP_WORKSPACE": "F:/项目路径"
+      }
     }
   }
 }
 ```
 
-> 一键配置：`python scripts/setup_mcp.py`
+一键配置脚本：`python scripts/setup_mcp.py`
 
-**Dify**：在自定义工具中导入 OpenAPI Schema：
-- URL：`http://localhost:19090/api/v1/openapi.json`
-- 认证：`X-API-Key`
+### Dify 接入
+
+在「自定义工具」中导入 OpenAPI Schema：
+
+- Schema URL：`http://localhost:19090/api/v1/openapi.json`
+- 认证方式：`X-API-Key` 请求头
+
+<p align="center">
+  <img src="docs/screenshots/dify_openapi_schema.png" width="70%" alt="Dify OpenAPI Schema 导入">
+</p>
 
 ---
 
-## 项目结构
+## 内置工具
+
+| Provider | 工具 | 说明 |
+|----------|------|------|
+| **filesystem** | `read_file` `write_file` `list_dir` `search_files` `file_stat` | 读写项目文件、搜索代码；路径沙箱 + mtime 缓存 |
+| **terminal** | `run_command` `sysinfo` | 编译测试、系统信息；禁用 shell + 危险语法拦截 + 进程树清理 |
+| **database** | `query` `execute` `list_tables` `describe_table` | 数据库查询与迁移；参数化查询防 SQL 注入 |
+| **web** | `web_fetch` `web_api` `json_query` | 爬取网页、调用 API、解析 JSON；URL 校验 + 超时控制 |
+| **llm** | `llm_call` `llm_ping` `llm_list_models` | 本地推理（Ollama）；故障隔离 + 熔断降级 |
+
+一键体验全部工具：`python main.py --demo`
+
+---
+
+## 安全设计
+
+网关内置三层安全防护，面向真实攻击场景验证：
+
+| 防护层 | 机制 | 覆盖的攻击手段 |
+|--------|------|---------------|
+| **认证 & 鉴权** | API Key + 多租户策略，不同接入端隔离资源 | 未授权访问、跨租户越权 |
+| **路径隔离** | 路径规范化 + 白名单前缀匹配，禁止符号链接 / UNC / 设备路径 | `../` 穿越、Windows 8.3 短文件名、大小写变形、空字节注入 |
+| **命令管控** | 禁用 shell 执行（`create_subprocess_exec`）+ 危险语法模式拦截 + 命令白名单 | `&&` `;` `|` `$()` 拼接、参数注入、交互式命令 |
+
+安全能力通过 56 项专项测试量化验证：
+
+<details>
+<summary><b>安全测试覆盖明细（点击展开）</b></summary>
+
+- **路径穿越（6 项）**：多级 `../`、混合分隔符、深层嵌套、URL 编码绕过
+- **Windows 绕过（4 项）**：大小写变形、UNC 路径、设备名路径（CON/NUL/COM1）、符号链接
+- **命令注入（9 项）**：`;` `|` `&&` `$()` 等 shell 连接符、重定向、命令替换
+- **命令黑名单（8 项）**：`rm -rf`、`shutdown`、`wget`、`curl` 等危险命令
+- **交互命令拦截（5 项）**：`vim`、`nano`、`top`、`htop`、`tail -f`
+- **边界极值（7 项）**：超长路径/参数、敏感系统路径、空字节注入、非法参数类型
+- **沙箱逃逸（2 项）**：工作目录越界、白名单外命令
+</details>
+
+运行安全测试：`python -m pytest tests/test_security.py -v`
+
+---
+
+## 结构化日志
+
+所有日志统一输出 JSON 格式到 stderr，每个请求自动分配唯一 `request_id` 贯穿全链路：
+
+```json
+{"t": "2026-06-27T10:30:00.123", "rid": "abc123", "mod": "mcp_gateway.server",
+ "lvl": "INFO", "msg": "收到请求 tools/list", "dur": "0.5ms", "err": ""}
+
+{"t": "2026-06-27T10:30:00.456", "rid": "abc123", "mod": "mcp_gateway.protocol",
+ "lvl": "INFO", "msg": "中间件管道执行完成", "dur": "0.3ms", "err": ""}
+
+{"t": "2026-06-27T10:30:01.234", "rid": "def456", "mod": "mcp_gateway.tools.filesystem",
+ "lvl": "WARN", "msg": "路径穿越拦截: ../../../etc/passwd", "dur": "0.1ms",
+ "err": "-32001"}
+```
+
+**日志字段说明：**
+
+| 字段 | 含义 |
+|------|------|
+| `t` | ISO 8601 时间戳（毫秒精度） |
+| `rid` | 请求追踪 ID，同一次请求所有日志共享 |
+| `mod` | 模块路径，快速定位代码位置 |
+| `lvl` | `DEBUG / INFO / WARN / ERROR` |
+| `msg` | 日志消息 |
+| `dur` | 该模块处理耗时（毫秒） |
+| `err` | 错误码（无错误为空） |
+
+典型排查流程：
+
+```bash
+# 启动网关，日志重定向到文件
+python main.py 2>gateway.log
+
+# 按 request_id 追踪一次完整调用
+cat gateway.log | where { $_ -match '"rid":"abc123"' } | python -m json.tool
+
+# 统计各模块耗时
+cat gateway.log | python -c "
+import sys, json
+for line in sys.stdin:
+    try:
+        e = json.loads(line)
+        print(f'{e[\"rid\"]} {e[\"mod\"]} {e[\"dur\"]} {e[\"msg\"]}')
+    except: pass
+"
+```
+
+---
+
+## 架构说明
+
+### 调用链路架构
+
+```
+                    AI Agent (Trae / Dify / Cursor)
+                            │         │
+                    STDIO   │         │  HTTP REST
+                    ┌───────▼─────────▼──────────┐
+                    │   MCP Transport Layer       │
+                    │   STDIOTransport / HTTP     │
+                    └───────┬─────────┬──────────┘
+                            └────┬─────┘
+                                 │ JSONRPCRequest
+                    ┌────────────▼───────────────┐
+                    │  MCPProtocolHandler         │
+                    │  唯一执行入口                │
+                    │  Middleware Pipeline:        │
+                    │  [Auth] → [RateLimit] →    │
+                    │  [Audit] → [Cache]         │
+                    │  ToolRegistry (17 tools)    │
+                    └────────────┬───────────────┘
+                                 │
+                    ┌────────────▼───────────────┐
+                    │  本地资源（沙箱安全）       │
+                    │  文件 · 终端 · DB · Ollama │
+                    └───────────────────────────┘
+```
+
+双传输层接入，统一协议内核，分层解耦设计。
+
+### 项目目录结构
 
 ```
 LLM/
-├── mcp_gateway/              # 核心网关
-│   ├── server.py             # 服务入口 + 中间件装配
-│   ├── protocol.py           # 协议内核 + 中间件管道 (唯一执行入口)
-│   ├── transport.py          # 传输层 (HTTP/STDIO 薄适配)
-│   ├── api.py                # REST → JSON-RPC 适配器
-│   ├── security.py           # 认证 / 速率限制 / 策略引擎
-│   ├── audit.py              # 统一审计日志
-│   ├── tenancy.py            # 多租户管理
-│   ├── workspace.py          # 工作区管理 + 提示词模板
-│   └── tools/                # 工具提供者
-│       ├── filesystem.py     # 5 个文件系统工具
-│       ├── terminal.py       # 2 个终端工具
-│       ├── database.py       # 4 个数据库工具
-│       ├── web.py            # 3 个网页工具
-│       └── llm.py            # 3 个大模型工具
-├── core/                     # 基础设施
-│   ├── types.py              # JSON-RPC 类型定义
-│   └── exceptions.py         # 统一异常体系
-├── config/                   # YAML 配置
-│   ├── default.yaml          # 默认配置
-│   └── config.example.yaml   # 带注释的配置模板
-├── tests/                    # 107 个测试
-├── docs/                     # 文档 + 截图素材
-│   ├── assets/               # 架构图 + 性能图表
-│   ├── screenshots/          # 实测运行截图
-│   └── 错误码对照表.md         # 完整错误码文档
-├── scripts/                  # 工具脚本
-├── docker/                   # Docker 部署
-└── main.py                   # 入口
+├── main.py                    # 入口，支持 --mode stdio / --demo / --status
+├── mcp_gateway/               # 核心网关
+│   ├── server.py              # 服务装配 + 中间件初始化
+│   ├── protocol.py            # 协议内核 + 中间件管道（唯一执行入口）
+│   ├── transport.py           # 传输层（STDIO/HTTP 薄适配）
+│   ├── api.py                 # REST → JSON-RPC 适配器
+│   ├── security.py            # 认证 / 限流 / 策略引擎
+│   ├── audit.py               # 审计日志
+│   ├── tenancy.py             # 多租户管理
+│   └── tools/                 # 5 个工具提供者，共 17 个工具
+├── core/                      # 基础设施
+│   ├── types.py               # JSON-RPC 类型定义
+│   ├── exceptions.py          # 统一异常体系
+│   └── structured_log.py      # 结构化 JSON 日志 + request_id 追踪
+├── config/                    # YAML 配置（带注释模板）
+├── tests/                     # 164 个测试（含 56 安全专项）
+├── docs/                      # 文档 + 截图 + 架构图 + 性能图表
+└── scripts/                   # 工具脚本
 ```
 
 ---
 
-## 测试
+## 质量保障
 
-```bash
-# 全部 107 个测试
-pytest
+- 全部测试：`pytest`（164 passed）
+- 安全专项：`pytest tests/test_security.py -v`（56 passed）
+- 端到端验证：`pytest tests/test_scenarios.py -v`
+- 代码风格：`ruff check .`（0 errors）
+- 冒烟测试：`python docs/smoke_test.py`
 
-# 双场景端到端验证 (Trae STDIO + Dify HTTP)
-pytest tests/test_scenarios.py -v
-
-# 导入 + 安全校验验证
-python tests/verify_imports.py
-
-# 全场景冒烟测试 + 素材采集
-python docs/smoke_test.py
-
-# 代码风格 (ruff 0 errors)
-ruff check .
-```
+<p align="center">
+  <img src="docs/assets/performance_chart.png" width="70%" alt="性能基准数据">
+</p>
 
 ---
 
-## 文档
+## 文档体系
 
-| 文档 | 内容 |
-|------|------|
-| [Trae 接入指南](docs/Trae接入指南.md) | Trae IDE MCP 配置步骤 |
-| [Dify 接入指南](docs/Dify平台自定义工具接入指南.md) | Dify 自定义工具节点配置 |
-| [架构设计](docs/架构设计.md) | 分层架构详解 |
-| [设计决策](docs/设计决策.md) | 技术选型决策记录 |
-| [错误码对照表](docs/错误码对照表.md) | 完整错误码定义与排查方法 |
-| [性能优化](docs/性能优化与跑分.md) | 缓存 + 并行调度指标 |
-| [烟测报告](docs/screenshots/smoke_test_results.log) | 全场景冒烟测试结果 |
+- **Trae 接入指南**：Trae IDE MCP 配置步骤
+- **Dify 接入指南**：Dify 自定义工具节点配置
+- **架构设计**：分层架构详解与核心流程
+- **设计决策**：技术选型决策记录
+- **错误码对照表**：完整的 JSON-RPC 错误码定义
+- **性能优化**：缓存 + 并行调度指标
 
 ---
 
@@ -390,9 +376,9 @@ ruff check .
 
 | 版本 | 核心变更 |
 |------|---------|
-| **v1.0** | 初始版本：MCP 协议基础 + HTTP REST 双路径 |
+| **v1.0** | MCP 协议基础 + HTTP REST 双路径 |
 | **v1.3** | 多租户、审计日志、路径沙箱、权限控制、OpenAPI |
-| **v2.0** | **协议内核统一**（唯一执行入口）+ **中间件管道** + **Ollama 故障隔离** + **Dify OpenAPI Schema** + **统一错误码** |
+| **v2.0** | 协议内核统一 + 中间件管道 + Ollama 故障隔离 + Dify OpenAPI Schema + 统一错误码 + 结构化日志 + 安全测试 |
 
 ---
 

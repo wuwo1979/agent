@@ -105,6 +105,7 @@ class JSONRPCErrorCode:
 class MiddlewareContext:
     """中间件执行上下文，贯穿整个请求生命周期。"""
     request: JSONRPCRequest
+    request_id: str = ""             # 全链路追踪 ID
     session_id: str = ""
     client_id: str = "anonymous"
     tenant_id: str = ""
@@ -553,6 +554,11 @@ class MCPProtocolHandler:
             transport="http",
             start_time=start,
         )
+        # 注入 request_id（从 contextvars 或 metadata 获取）
+        if not ctx.request_id:
+            from core.structured_log import get_request_id
+            ctx.request_id = get_request_id()
+        ctx.metadata["request_id"] = ctx.request_id
 
         # 2. 前置中间件管道
         ctx = await self.middleware.run_before(ctx)
