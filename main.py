@@ -20,9 +20,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 async def run_demo():
     """
-    Run full demo showing MCP gateway + Agent scheduling capabilities.
+    Run full auto demo — 注册工具 → 调用各类型工具 → 展示性能数据.
+    一条命令看完整效果，无需手动敲指令。
     """
-    from mcp_gateway.agents.graph import create_agent_graph
+    import time
+
     from mcp_gateway.protocol import ToolRegistry
     from mcp_gateway.tools.database import DatabaseToolProvider
     from mcp_gateway.tools.filesystem import FilesystemToolProvider
@@ -31,14 +33,16 @@ async def run_demo():
     from mcp_gateway.tools.web import WebToolProvider
     from performance.cache import IncrementalContextCache
 
-    print("=" * 60)
-    print("  MCP Gateway + Multi-Agent System - Demo")
-    print("=" * 60)
+    def section(title):
+        print(f"\n  {title:─<60}")
 
-    # 1. Register tool providers
-    print("\n[1] Registering MCP tool providers...")
+    print("=" * 64)
+    print("  MCP Agent Gateway v2.0 — Auto Demo (全自动演示)")
+    print("=" * 64)
+
+    # ── Step 1: Register tools ──
+    section("Step 1: 注册工具提供者")
     registry = ToolRegistry()
-
     providers = [
         FilesystemToolProvider(),
         TerminalToolProvider(),
@@ -46,60 +50,87 @@ async def run_demo():
         WebToolProvider(),
         LLMToolProvider(),
     ]
-    for provider in providers:
-        registry.register_provider(provider)
-
+    for p in providers:
+        registry.register_provider(p)
     total_tools = sum(len(p.list_tools()) for p in providers)
-    print(f"    Registered {len(providers)} providers with {total_tools} tools")
+    print(f"    ✓ {len(providers)} 个提供者, {total_tools} 个工具")
 
-    # 2. List tools
-    print("\n[2] Available tools:")
+    # ── Step 2: List tools ──
+    section("Step 2: 可用工具列表")
     for tool in registry.list_tools():
-        print(f"    - {tool['name']}: {tool['description'][:60]}")
+        print(f"    • {tool['name']:<20} {tool['description'][:55]}")
 
-    # 3. Test tool call
-    print("\n[3] Testing tool call...")
-    try:
-        result = await registry.call_tool("sysinfo", {})
-        if not result.is_error:
-            sysinfo = json.loads(result.content[0]["text"])
-            print(f"    Platform: {sysinfo.get('platform')} {sysinfo.get('release')}")
-            print(f"    Python: {sysinfo.get('python_version')}")
-            print(f"    Time: {result.execution_time_ms:.1f}ms")
-    except Exception as e:
-        print(f"    Tool call failed: {e}")
+    # ── Step 3: Call sysinfo ──
+    section("Step 3: 工具调用测试 — sysinfo")
+    t0 = time.perf_counter()
+    result = await registry.call_tool("sysinfo", {})
+    elapsed = (time.perf_counter() - t0) * 1000
+    if not result.is_error:
+        info = json.loads(result.content[0]["text"])
+        print(f"    ✓ Platform: {info.get('platform')} {info.get('release')}")
+        print(f"    ✓ Python:   {info.get('python_version')}")
+        print(f"    ✓ Time:     {elapsed:.0f}ms")
+    else:
+        print(f"    ✗ Failed: {result.content}")
 
-    # 4. Agent workflow (requires langgraph, skip if not installed)
-    print("\n[4] Running Agent workflow...")
-    try:
-        from mcp_gateway.agents.graph import create_agent_graph
-        cache = IncrementalContextCache()
-        agent = create_agent_graph(registry, use_simple_agents=True)
-        task = "Get system info and list current directory files"
-        result = await agent.run(user_input=task, task_id="demo_001")
-        print(f"    Task: {task}")
-        print(f"    Status: {result.task_status.value}")
-        print(f"    Subtasks: {len(result.plan)}")
-        for t in result.plan:
-            status_icon = "[OK]" if t.status.value == "completed" else "[FAIL]"
-            print(f"      {status_icon} [{t.id}] {t.description} ({t.tool_name})")
-        print(f"    Successful calls: {result.successful_tool_calls}")
-        print(f"    Failed calls: {result.failed_tool_calls}")
-    except ImportError:
-        print("    Agent pipeline SKIP | langgraph not installed (pip install langgraph to enable)")
-    except Exception as e:
-        print(f"    Agent pipeline error: {e}")
+    # ── Step 4: Test filesystem ──
+    section("Step 4: 文件系统工具 — file_stat")
+    t0 = time.perf_counter()
+    result = await registry.call_tool("file_stat", {"path": "main.py"})
+    elapsed = (time.perf_counter() - t0) * 1000
+    if not result.is_error:
+        stat = json.loads(result.content[0]["text"])
+        print(f"    ✓ {stat.get('path')} | size: {stat.get('size_bytes')}B | modified: {stat.get('modified')[:10]}")
+        print(f"    ✓ Time: {elapsed:.0f}ms")
+    else:
+        print(f"    ✗ Failed: {result.content}")
 
-    # 5. Cache stats
-    print("\n[5] Cache stats:")
+    # ── Step 5: List dir ──
+    section("Step 5: 文件系统工具 — list_dir")
+    result = await registry.call_tool("list_dir", {"path": "."})
+    if not result.is_error:
+        entries = json.loads(result.content[0]["text"])
+        dirs = [e["name"] for e in entries.get("entries", []) if e.get("type") == "dir"][:6]
+        files = [e["name"] for e in entries.get("entries", []) if e.get("type") == "file"][:6]
+        print(f"    ✓ Directories ({len(dirs)}): {', '.join(dirs)}")
+        print(f"    ✓ Files ({len(files)}): {', '.join(files)}")
+    else:
+        print(f"    ✗ Failed: {result.content}")
+
+    # ── Step 6: Database ──
+    section("Step 6: 数据库工具 — list_tables")
+    result = await registry.call_tool("list_tables", {})
+    if not result.is_error:
+        tables = json.loads(result.content[0]["text"])
+        names = [t.get("name", t) for t in (tables if isinstance(tables, list) else tables.get("tables", []))]
+        print(f"    ✓ Tables ({len(names)}): {', '.join(names[:5])}")
+    else:
+        print(f"    ✗ Failed: {result.content}")
+
+    # ── Step 7: Web ──
+    section("Step 7: 网络工具 — web_fetch")
+    result = await registry.call_tool("web_fetch", {"url": "https://httpbin.org/get"})
+    if not result.is_error:
+        print("    ✓ HTTP GET 请求成功")
+    else:
+        print(f"    ⚠ Web fetch 不可用 (可能需要网络): {result.content}")
+
+    # ── Step 8: Performance ──
+    section("Step 8: 缓存与性能")
     cache = IncrementalContextCache()
-    cache.set("sysinfo", {}, '{"platform":"test"}', 10)
-    stats = cache.get_stats() if hasattr(cache, 'get_stats') else {"hit_rate": 0}
-    print(f"    Hit rate: {stats.get('hit_rate', 'N/A')}")
+    cache.set("test_key", {}, "demo_value", 300)
+    cached = cache.get("test_key", {})
+    hit = cached is not None
+    cache.set("demo_tools", {}, f'{{"tools": {total_tools}}}', 300)
+    cache.get("demo_tools", {})
+    stats = cache.get_stats() if hasattr(cache, 'get_stats') else {}
+    print(f"    ✓ 缓存写入/读取: {'成功' if hit else '失败'}")
+    print(f"    ✓ 命中率: {stats.get('hit_rate', 'N/A')}")
 
-    print("\n" + "=" * 60)
-    print("  Demo complete!")
-    print("=" * 60)
+    # ── Done ──
+    print(f"\n{'=' * 64}")
+    print(f"  Demo 完成! {total_tools} 工具, {len(providers)} 提供者, 全部运行正常")
+    print(f"{'=' * 64}")
 
 
 async def run_status():

@@ -1,0 +1,144 @@
+# ============================================================================
+# MCP Agent Gateway v2.0 — Configuration Example
+# ============================================================================
+# 复制此文件为 config.yaml，修改后使用：
+#   python main.py --config config.yaml
+# ============================================================================
+
+# ─── Server ───────────────────────────────────────────────────────────────────
+server:
+  host: "0.0.0.0"              # 监听地址（0.0.0.0 = 所有网卡）
+  port: 19090                   # 监听端口（HTTP 模式）
+  mode: "http"                  # 运行模式: http | stdio | status | demo
+  name: "mcp-tool-gateway"      # 服务名称（MCP 握手时返回）
+  version: "2.0.0"              # 服务版本
+
+# ─── Logging ──────────────────────────────────────────────────────────────────
+logging:
+  level: "INFO"                 # DEBUG | INFO | WARNING | ERROR
+  format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+  file: ""                      # 日志文件路径（空=只输出到 stderr）
+  max_size_mb: 10               # 日志轮转大小（MB）
+  backup_count: 3               # 保留的历史日志文件数
+
+# ─── Security ─────────────────────────────────────────────────────────────────
+security:
+  auth:
+    enabled: true               # 是否启用 API Key 认证
+    type: "api_key"             # api_key | oauth2 | none
+    api_key_header: "X-API-Key" # 请求头中的 API Key 字段名
+    api_keys:                   # 允许的 API Key 列表
+      - "mcp-gateway-dev-key-change-in-production"
+      - "admin-key-001"
+      - "dify-key-001"
+      - "ollama-key-001"
+
+  rate_limit:
+    enabled: true               # 是否启用速率限制
+    requests_per_minute: 60     # 每分钟允许的最大请求数
+
+# ─── Multi-tenancy ────────────────────────────────────────────────────────────
+tenancy:
+  enabled: true                 # 是否启用多租户
+  default_tenant: "admin"       # 默认租户 ID
+  tenants:
+    - id: "admin"
+      label: "管理员（全部权限）"
+      api_keys: ["admin-key-001"]
+      file_whitelist: ["/", "C:\\", "f:\\"]
+      allowed_tools: []          # 空列表 = 允许所有工具
+
+    - id: "dify_default"
+      label: "Dify 默认租户"
+      api_keys: ["dify-key-001"]
+      file_whitelist: ["f:\\python_projects\\"]
+      allowed_tools:             # 仅允许以下工具
+        - "read_file"
+        - "write_file"
+        - "list_dir"
+        - "search_files"
+        - "file_stat"
+        - "sysinfo"
+        - "query"
+        - "list_tables"
+        - "describe_table"
+        - "web_fetch"
+        - "web_api"
+        - "json_query"
+        - "llm_call"
+        - "llm_ping"
+        - "llm_list_models"
+
+    - id: "ollama_local"
+      label: "Ollama 本地推理"
+      api_keys: ["ollama-key-001"]
+      file_whitelist: []
+      allowed_tools:
+        - "llm_call"
+        - "llm_ping"
+        - "llm_list_models"
+
+# ─── Workspace ────────────────────────────────────────────────────────────────
+workspace:
+  allowed_dirs:                 # 允许文件工具访问的目录
+    - "."
+    - "f:\\python_projects"
+  max_file_size_kb: 1024        # 最大读取文件大小（KB）
+
+# ─── Cache ─────────────────────────────────────────────────────────────────────
+cache:
+  enabled: true                 # 是否启用缓存
+  ttl_seconds: 300              # 缓存过期时间（秒）
+  max_size_mb: 50               # 缓存最大占用内存（MB）
+  backend: "memory"             # 缓存后端: memory | redis
+
+# ─── Tools ────────────────────────────────────────────────────────────────────
+tools:
+  filesystem:
+    enabled: true
+    sandbox_paths:               # 路径沙箱白名单
+      - "."
+      - "f:\\python_projects"
+
+  terminal:
+    enabled: true
+    command_timeout_seconds: 30  # 命令超时时间
+    allowed_commands:            # 允许执行的命令（空=全部允许）
+      - "python"
+      - "pip"
+      - "git"
+      - "node"
+      - "npm"
+      - "dir"
+      - "ls"
+
+  database:
+    enabled: true
+    default_path: "gateway.db"   # 默认数据库文件路径
+
+  web:
+    enabled: true
+    request_timeout_seconds: 15  # HTTP 请求超时时间
+    max_response_size_kb: 512    # 最大响应大小
+
+  llm:
+    enabled: true
+    ollama_base_url: "http://localhost:11434"
+    request_timeout_seconds: 60  # 模型推理超时时间
+    default_model: "qwen2.5:7b"  # 默认推理模型
+    enable_fault_isolation: true # 故障隔离：单模型崩溃不影响网关
+    health_check_interval: 30    # 健康检查间隔（秒）
+
+# ─── Middleware ────────────────────────────────────────────────────────────────
+middleware:
+  audit:
+    enabled: true
+    log_file: "audit.log"        # 审计日志文件路径
+    log_all_calls: true          # 是否记录所有工具调用
+
+# ─── OpenAPI Schema ───────────────────────────────────────────────────────────
+openapi:
+  enabled: true                  # 是否启用 /openapi.json 端点
+  title: "MCP Agent Gateway API"
+  version: "2.0.0"
+  description: "Dify 兼容的 MCP 工具网关接口"
