@@ -290,10 +290,13 @@ class STDIOTransport:
         self.protocol_handler = protocol_handler
 
     def _write_jsonrpc(self, data: Dict[str, Any]):
-        """向 stdout 写入 JSON-RPC 响应（唯一允许的 stdout 输出）。"""
+        """向 stdout 写入 JSON-RPC 响应，带 Content-Length 帧头（符合 MCP STDIO 规范）。"""
         import sys
         line = json.dumps(data, ensure_ascii=False, default=str)
-        sys.stdout.write(line + "\n")
+        body_bytes = line.encode("utf-8")
+        sys.stdout.write(f"Content-Length: {len(body_bytes)}\r\n\r\n")
+        sys.stdout.buffer.write(body_bytes)
+        sys.stdout.write("\n")
         sys.stdout.flush()
 
     def _write_notification(self, method: str, params: Dict[str, Any] = None):
@@ -348,19 +351,50 @@ class STDIOTransport:
         logger.info("MCP Gateway starting in STDIO mode...")
         loop = asyncio.get_running_loop()
 
-        def _read_line() -> Optional[str]:
-            """Read a line from stdin (runs in thread executor)."""
+        def _read_frame() -> Optional[str]:
+            """
+            读取一个完整的 STDIO 帧（带 Content-Length 帧头兼容）。
+
+            规范格式（MCP / LSP 标准）：
+                Content-Length: N\r\n\r\n{"jsonrpc":"2.0",...}
+
+            兜底：若首行不是 Content-Length 头，按纯 JSON 行模式解析（向后兼容）。
+            """
             try:
-                line = sys.stdin.readline()
-                if not line:
+                header = sys.stdin.readline()
+                if not header:
                     return None
-                return line.strip()
             except (EOFError, OSError):
                 return None
 
+            header = header.strip()
+
+            # 纯换行兜底：直接解析为 JSON 行
+            if not header.startswith("Content-Length:"):
+                return header if header else None
+
+            # 标准帧头：解析 Content-Length
+            try:
+                length = int(header[len("Content-Length:"):].strip())
+            except (ValueError, IndexError):
+                logger.warning(f"Malformed Content-Length header: {header}")
+                return None
+
+            # 跳过剩余 header 行（直到空行 \r\n\r\n）
+            while True:
+                h = sys.stdin.readline()
+                if not h:
+                    return None
+                if h.strip() == "":
+                    break
+
+            # 精确读取 N 字节 body
+            body = sys.stdin.read(length)
+            return body
+
         while True:
             try:
-                raw = await loop.run_in_executor(None, _read_line)
+                raw = await loop.run_in_executor(None, _read_frame)
                 if raw is None:
                     logger.info("STDIO stdin closed, shutting down")
                     break

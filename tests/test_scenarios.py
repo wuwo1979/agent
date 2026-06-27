@@ -216,15 +216,16 @@ async def test_stdio_mode():
         return False
 
     finally:
-        proc.terminate()
-        try:
-            await asyncio.wait_for(proc.wait(), timeout=5)
-        except asyncio.TimeoutError:
-            proc.kill()
+        if proc.returncode is None:
+            proc.terminate()
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=5)
+            except asyncio.TimeoutError:
+                proc.kill()
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 场景2: Dify 平台 — HTTP REST API 模式
+# 场景2: Dify 平台 — HTTP REST API 模式验证
 # ═══════════════════════════════════════════════════════════════════
 
 async def test_stdio_mode_stdout_purity():
@@ -452,11 +453,12 @@ async def test_http_mode():
         return False
 
     finally:
-        proc.terminate()
-        try:
-            await asyncio.wait_for(proc.wait(), timeout=5)
-        except asyncio.TimeoutError:
-            proc.kill()
+        if proc.returncode is None:
+            proc.terminate()
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=5)
+            except asyncio.TimeoutError:
+                proc.kill()
 
 
 # ═══════════════════════════════════════════════════════════════════

@@ -175,35 +175,93 @@ class FilesystemToolProvider(BaseToolProvider):
             timeout_ms=5000,
         ))
 
+    @staticmethod
+    def _resolve_short_path_windows(path: str) -> str:
+        """Windows 短文件名（8.3 格式）解析为真实长路径。"""
+        if os.name != "nt":
+            return path
+        try:
+            import ctypes
+            from ctypes import wintypes
+            GetLongPathNameW = ctypes.windll.kernel32.GetLongPathNameW
+            GetLongPathNameW.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
+            GetLongPathNameW.restype = wintypes.DWORD
+            buf = ctypes.create_unicode_buffer(32768)
+            n = GetLongPathNameW(path, buf, len(buf))
+            if n and n <= len(buf):
+                return buf.value
+        except Exception:
+            pass
+        return path
+
     def _resolve_path(self, path: str) -> str:
         """
         Resolve and validate a file path with strict traversal protection.
 
-        - 解析符号链接和 '..' 得到真实路径
-        - 与白名单目录进行严格前缀匹配（带分隔符后缀）
-        - 杜绝 C:\\Users\\admin 匹配 C:\\Users\\admin_hacker 这类绕过
+        安全层级：
+        1. 拒绝 Windows 设备路径（CON, NUL, COM1 等保留名）
+        2. 拒绝 UNC 路径（\\\\ 开头共享路径）
+        3. 展开用户目录 ~
+        4. 规范化路径分隔符，解析 ..
+        5. 转为绝对路径
+        6. 解析 8.3 短文件名 → 长文件名（仅 Windows）
+        7. 解析符号链接 / 挂载点 → 真实路径
+        8. 大小写不敏感前缀匹配白名单（Windows，带分隔符后缀防护）
         """
-        # 1. 展开用户目录
+        # 0. 拒绝空路径
+        if not path or not path.strip():
+            raise PermissionDeniedError("path", "Empty path is not allowed")
+
+        # 1. 拒绝 Windows 设备路径（保留名，如 CON, NUL, COM1, LPT1）
+        basename = os.path.basename(path.rstrip("/\\")).upper()
+        device_names = {"CON", "PRN", "AUX", "NUL",
+                        "COM1", "COM2", "COM3", "COM4", "COM5",
+                        "COM6", "COM7", "COM8", "COM9",
+                        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5",
+                        "LPT6", "LPT7", "LPT8", "LPT9"}
+        name_stripped = basename.split(".")[0]  # CON.txt → CON
+        if name_stripped in device_names:
+            raise PermissionDeniedError(
+                "path", f"Windows reserved device path blocked: '{basename}'"
+            )
+
+        # 2. 拒绝 UNC 路径
+        p_stripped = path.strip()
+        if p_stripped.startswith("\\\\") or p_stripped.startswith("//"):
+            raise PermissionDeniedError(
+                "path", "UNC paths are not allowed (block path traversal via network share)"
+            )
+
+        # 3. 展开用户目录
         expanded = os.path.expanduser(path)
-        # 2. 规范化路径分隔符，解析 ..
+        # 4. 规范化路径分隔符，解析 ..
         normalized = os.path.normpath(expanded)
-        # 3. 转为绝对路径
+        # 5. 转为绝对路径
         if not os.path.isabs(normalized):
             normalized = os.path.abspath(normalized)
-        # 4. 解析符号链接（若有）
+        # 6. 解析 8.3 短文件名（仅 Windows）
+        resolved = self._resolve_short_path_windows(normalized)
+        # 7. 解析符号链接 / 挂载点（若有）
         try:
-            resolved = os.path.realpath(normalized)
+            resolved = os.path.realpath(resolved)
         except OSError:
-            resolved = normalized
+            pass
 
-        # 5. 严格前缀检查：确保路径在白名单目录内
+        # 8. 严格前缀检查：确保路径在白名单目录内
         resolved_norm = os.path.normpath(resolved)
         is_safe = False
         for root in SAFE_ROOTS:
             root_norm = os.path.normpath(os.path.abspath(root))
+            # Windows 下大小写不敏感匹配
+            if os.name == "nt":
+                resolved_check = resolved_norm.lower()
+                root_check = root_norm.lower()
+            else:
+                resolved_check = resolved_norm
+                root_check = root_norm
             # 追加分隔符，防止 C:\Users\admin 匹配 C:\Users\admin_hacker
-            root_prefix = root_norm + os.sep
-            if resolved_norm == root_norm or resolved_norm.startswith(root_prefix):
+            root_prefix = root_check + os.sep
+            if resolved_check == root_check or resolved_check.startswith(root_prefix):
                 is_safe = True
                 break
 
@@ -231,9 +289,13 @@ class FilesystemToolProvider(BaseToolProvider):
 
         return await handler(**arguments)
 
+    # 文件读取层缓存：key=(full_path, mtime) → content
+    _file_cache: Dict[tuple, str] = {}
+    _cache_max_entries: int = 128
+
     async def _read_file(self, path: str, encoding: str = "utf-8",
                          max_lines: int = 0) -> ToolCallResult:
-        """Read a file."""
+        """Read a file with mtime-aware caching (auto-invalidate on change)."""
         full_path = self._resolve_path(path)
 
         if not os.path.exists(full_path):
@@ -241,6 +303,17 @@ class FilesystemToolProvider(BaseToolProvider):
 
         if not os.path.isfile(full_path):
             raise ToolExecutionError("read_file", f"Not a file: {path}")
+
+        # mtime + 文件大小 = 缓存失效信号
+        try:
+            stat = os.stat(full_path)
+            cache_key = (full_path, stat.st_mtime, stat.st_size)
+        except OSError:
+            cache_key = None
+
+        if cache_key and cache_key in self._file_cache:
+            content = self._file_cache[cache_key]
+            return ToolCallResult.text_result("read_file", content)
 
         try:
             with open(full_path, "r", encoding=encoding) as f:
@@ -253,6 +326,15 @@ class FilesystemToolProvider(BaseToolProvider):
                     content = "".join(lines)
                 else:
                     content = f.read()
+
+            # 更新缓存
+            if cache_key:
+                if len(self._file_cache) >= self._cache_max_entries:
+                    # LRU 简单淘汰：清空一半
+                    keys = list(self._file_cache.keys())
+                    for k in keys[:len(keys)//2]:
+                        del self._file_cache[k]
+                self._file_cache[cache_key] = content
 
             return ToolCallResult.text_result(
                 "read_file",

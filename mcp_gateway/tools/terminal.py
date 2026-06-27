@@ -162,7 +162,7 @@ class TerminalToolProvider(BaseToolProvider):
 
     async def _run_command(self, command: str, cwd: str = ".",
                            timeout: int = 30) -> ToolCallResult:
-        """Execute a shell command with safety checks."""
+        """Execute a command with safety checks, no shell injection risk."""
 
         # Safety check 1: command length limit
         if len(command) > MAX_COMMAND_LENGTH:
@@ -202,12 +202,12 @@ class TerminalToolProvider(BaseToolProvider):
                     f"Command not in whitelist. Allowed prefixes: {', '.join(ALLOWED_COMMANDS_PREFIXES[:10])}... (config USE_COMMAND_WHITELIST=True)"
                 )
 
-        # Safety check 5: dangerous syntax check — prevents bypass of command whitelist
+        # Safety check 5: dangerous syntax check
         for syntax, msg in DANGEROUS_SYNTAX_PATTERNS:
             if syntax in command:
                 raise ToolExecutionError("run_command", f"危险语法: {msg}")
 
-        # Safety check 6: workspace sandbox - working directory must be within workspace
+        # Safety check 6: workspace sandbox
         resolved_cwd = os.path.abspath(os.path.join(os.getcwd(), cwd))
         if not resolved_cwd.startswith(WORKSPACE_DIR):
             raise ToolExecutionError(
@@ -217,21 +217,49 @@ class TerminalToolProvider(BaseToolProvider):
 
         timeout = min(timeout, 60)
 
+        # 将命令字符串解析为可执行文件名 + 参数列表（不支持 shell，从根上防注入）
+        import shlex
         try:
-            process = await asyncio.create_subprocess_shell(
-                command,
+            args = shlex.split(command, posix=(os.name != "nt"))
+        except ValueError as e:
+            raise ToolExecutionError(
+                "run_command", f"Command parse error: {e}"
+            )
+        if not args:
+            raise ToolExecutionError("run_command", "Empty command after parsing")
+
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *args,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=cwd,
             )
 
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
-                timeout=timeout,
-            )
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=timeout,
+                )
+            except asyncio.TimeoutError:
+                # Windows 下强制终止整个进程树
+                if os.name == "nt" and process.pid is not None:
+                    try:
+                        subprocess.run(
+                            ["taskkill", "/T", "/F", "/PID", str(process.pid)],
+                            capture_output=True, timeout=3,
+                        )
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        process.kill()
+                    except Exception:
+                        pass
+                raise ToolTimeoutError("run_command", timeout * 1000)
 
-            stdout_text = stdout.decode("utf-8", errors="replace")
-            stderr_text = stderr.decode("utf-8", errors="replace")
+            stdout_text = stdout.decode("utf-8", errors="replace") if stdout else ""
+            stderr_text = stderr.decode("utf-8", errors="replace") if stderr else ""
 
             result = {
                 "exit_code": process.returncode,
@@ -249,8 +277,14 @@ class TerminalToolProvider(BaseToolProvider):
                 is_error=process.returncode != 0,
             )
 
-        except asyncio.TimeoutError:
-            raise ToolTimeoutError("run_command", timeout * 1000)
+        except ToolTimeoutError:
+            raise
+        except OSError as e:
+            # create_subprocess_exec 会抛出 FileNotFoundError 等
+            raise ToolExecutionError(
+                "run_command",
+                f"Failed to execute command: {e}"
+            )
 
     async def _sysinfo(self) -> ToolCallResult:
         """Get system information."""
