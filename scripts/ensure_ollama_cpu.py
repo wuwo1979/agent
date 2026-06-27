@@ -15,7 +15,6 @@ import subprocess
 import sys
 import time
 
-
 OLLAMA_PID_FILE = os.path.join(os.path.dirname(__file__), "..", ".ollama_cpu_pid")
 
 
@@ -135,8 +134,8 @@ def start_ollama_cpu(verbose: bool = False) -> bool:
 def test_generation(verbose: bool = False) -> bool:
     """Test if generation works (CPU mode verification)."""
     try:
-        import urllib.request
         import json
+        import urllib.request
 
         payload = json.dumps({
             "model": "qwen2.5:7b",

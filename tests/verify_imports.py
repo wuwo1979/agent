@@ -1,14 +1,14 @@
 """快速验证修改后的代码可完整导入。"""
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 1. 核心导入
-from mcp_gateway.api import (
-    _standardize_ollama_error, OLLAMA_ERROR_MAP
-)
+from mcp_gateway.api import OLLAMA_ERROR_MAP, _standardize_ollama_error
 from mcp_gateway.tools.filesystem import FilesystemToolProvider
 from mcp_gateway.tools.terminal import DANGEROUS_SYNTAX_PATTERNS
+
 print("[OK] All imports passed")
 
 # 2. 验证错误码标准化

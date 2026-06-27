@@ -2,10 +2,10 @@
 全场景冒烟测试 + 面试素材采集
 验证三个核心场景，保存所有输出用于截图/文档
 """
-import json
-import urllib.request
 import http.client
+import json
 import sys
+import urllib.request
 
 BASE = "http://localhost:19090"
 ADMIN_KEY = "admin-key-001"
@@ -135,7 +135,7 @@ all_ok = True
 checks = [
     ("Health 端点", h.get("status") == "healthy"),
     ("工具列表 >= 15", len(tools) >= 15),
-    ("REST read_file调用", tc.get("success") == True),
+    ("REST read_file调用", tc.get("success")),
     ("OpenAPI Schema", o.get("openapi") == "3.0.3"),
     ("MCP 初始化", mcp_init.get("result", {}).get("serverInfo", {}).get("name") == "mcp-tool-gateway"),
     ("MCP 工具列表", len(tools2) >= 15),
@@ -150,5 +150,5 @@ for name, ok in checks:
 if all_ok:
     print(f"\n  ✅ 全部 {len(checks)} 项验证通过! 网关 v2.0 运行正常")
 else:
-    print(f"\n  ❌ 存在未通过的验证项")
+    print("\n  ❌ 存在未通过的验证项")
     sys.exit(1)

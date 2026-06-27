@@ -203,8 +203,8 @@ class ExternalAPIHandler:
 
         # 多租户权限检查（REST 层职责）
         if tenant_id:
-            from mcp_gateway.tenancy import get_tenancy
             from mcp_gateway.security import AuthResult
+            from mcp_gateway.tenancy import get_tenancy
             tenancy = get_tenancy()
             access_result = tenancy.check_tool_access(tenant_id, tool_name)
             if access_result == AuthResult.DENY:

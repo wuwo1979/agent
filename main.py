@@ -106,9 +106,9 @@ async def run_status():
     """
     Show project status dashboard — 模块健康度、工具注册、测试状态、中间件管道。
     """
-    import platform
     import importlib
     import logging
+    import platform
     # Suppress log noise during status display
     logging.getLogger("mcp_gateway").setLevel(logging.WARNING)
 
@@ -154,11 +154,11 @@ async def run_status():
     provider_count = 0
 
     # Manually register known providers
-    from mcp_gateway.tools.filesystem import FilesystemToolProvider
-    from mcp_gateway.tools.terminal import TerminalToolProvider
     from mcp_gateway.tools.database import DatabaseToolProvider
-    from mcp_gateway.tools.web import WebToolProvider
+    from mcp_gateway.tools.filesystem import FilesystemToolProvider
     from mcp_gateway.tools.llm import LLMToolProvider
+    from mcp_gateway.tools.terminal import TerminalToolProvider
+    from mcp_gateway.tools.web import WebToolProvider
 
     provider_classes = [
         ("filesystem", FilesystemToolProvider, "Filesystem tools (5)"),
@@ -184,8 +184,8 @@ async def run_status():
 
     # ── Middleware Pipeline ──
     print(f"\n  {'Middleware Pipeline':─<40}")
-    from mcp_gateway.protocol import MCPProtocolHandler, create_audit_middleware
     from mcp_gateway.audit import AuditLogger
+    from mcp_gateway.protocol import MCPProtocolHandler, create_audit_middleware
     from mcp_gateway.security import SecurityMiddleware
 
     protocol = MCPProtocolHandler(server_name="mcp-gateway", server_version="2.0.0")

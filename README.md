@@ -23,6 +23,53 @@
 
 ---
 
+## 界面速览
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="https://img.shields.io/badge/-%E2%9C%85%20%E9%83%A8%E7%BD%B2%E9%AA%8C%E8%AF%81-blue?style=flat-square"><br>
+      <img src="docs/screenshots/api_health_check.png" width="100%" alt="健康检查"><br>
+      <sub>一键部署 → 健康检查确认服务在线</sub>
+    </td>
+    <td align="center">
+      <img src="https://img.shields.io/badge/-%F0%9F%94%8D%20Trae%20%E5%B7%A5%E5%85%B7%E5%88%97%E8%A1%A8-green?style=flat-square"><br>
+      <img src="docs/screenshots/mcp_tools_list.png" width="100%" alt="工具列表"><br>
+      <sub>Trae IDE 通过 MCP 协议发现 17 个工具</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="https://img.shields.io/badge/-%F0%9F%94%8D%20Dify%20%E8%87%AA%E5%AE%9A%E4%B9%89%E5%B7%A5%E5%85%B7-orange?style=flat-square"><br>
+      <img src="docs/screenshots/dify_openapi_schema.png" width="100%" alt="Dify Schema"><br>
+      <sub>自动生成 OpenAPI Schema → Dify 一键导入</sub>
+    </td>
+    <td align="center">
+      <img src="https://img.shields.io/badge/-%F0%9F%93%8A%20%E8%BF%90%E8%A1%8C%E7%8A%B6%E6%80%81-orange?style=flat-square"><br>
+      <img src="docs/screenshots/status_dashboard.png" width="100%" alt="仪表盘"><br>
+      <sub>实时运行监控 + 工具使用统计</sub>
+    </td>
+  </tr>
+</table>
+
+> 以上截图全部来自实测运行环境。完整烟测日志：[docs/screenshots/smoke_test_results.log](docs/screenshots/smoke_test_results.log)
+
+---
+
+## 这个项目解决什么问题？
+
+AI Agent（如 Trae、Dify、Cursor）在和本地环境交互时面临三重障碍：
+
+| 障碍 | 具体表现 | 本项目的解法 |
+|------|----------|------------|
+| **协议割裂** | Trae 用 STDIO MCP，Dify 用 HTTP REST API，两套代码两套维护 | 单套 JSON-RPC 协议内核 + 薄传输层适配，一套代码同时服务两端 |
+| **安全风险** | Agent 能操作文件、执行命令、调数据库，权限控制缺失 | 多租户 API Key 认证 + 路径白名单沙箱 + 工具权限隔离 |
+| **集成成本** | 每个平台都要手动配 HTTP 节点、写接口文档 | Dify 秒级适配：自动生成 OpenAPI Schema 一键导入；Trae 一行配置：JSON 模板复制即用 |
+
+简单说：**你只需要启动一个网关，Trae 和 Dify 都能用，而且安全、可控、开箱即用。**
+
+---
+
 ## 30 秒快速启动
 
 ```bash
@@ -40,7 +87,82 @@ curl -X POST http://localhost:9090/mcp \
 
 ---
 
-## v2.0 架构升级概览
+## 实际使用流程
+
+### 场景一：Trae IDE 中使用（STDIO 模式）
+
+```mermaid
+sequenceDiagram
+  participant Trae as Trae IDE
+  participant Gateway as MCP Gateway (STDIO)
+  participant Tools as 本地工具集
+
+  Trae->>Gateway: initialize (JSON-RPC)
+  Gateway->>Trae: serverInfo + capabilities
+  Trae->>Gateway: tools/list
+  Gateway->>Trae: 17 tools (read_file, run_command, ...)
+  Trae->>Gateway: tools/call (read_file, path=xxx)
+  Gateway->>Tools: 路径安全校验 → 读取
+  Tools->>Gateway: 文件内容
+  Gateway->>Trae: JSON-RPC response
+```
+
+**实测效果：** Trae IDE 内可直接让 AI 读写文件、执行命令、查询数据库、调用 Ollama 模型，所有操作受权限控制。
+
+### 场景二：Dify 平台中使用（HTTP REST 模式）
+
+```mermaid
+sequenceDiagram
+  participant Dify as Dify 平台
+  participant Gateway as MCP Gateway (HTTP)
+  participant Tools as 本地工具集
+
+  Dify->>Gateway: 导入 OpenAPI Schema (/openapi.json)
+  Gateway->>Dify: 自动生成 17 个工具定义
+  Dify->>Gateway: POST /tools/call (X-API-Key + 参数)
+  Gateway->>Tools: 多租户鉴权 → 执行
+  Tools->>Gateway: 结果
+  Gateway->>Dify: JSON 响应 (结构化)
+```
+
+**实测效果：** Dify 内导入 Schema 即可使用所有工具，无需手动配置 HTTP 节点。
+
+### 场景三：Ollama 崩溃了会怎样？
+
+```mermaid
+sequenceDiagram
+  participant Agent as AI Agent
+  participant Gateway as MCP Gateway
+  participant Ollama as Ollama (已崩溃)
+
+  Agent->>Gateway: tools/call (llm_ping)
+  Gateway->>Ollama: 健康检查
+  Ollama--xGateway: 连接失败
+  Gateway->>Agent: 标准错误响应 (is_error=true, 含错误信息)
+  Note over Agent,Gateway: 网关其他功能完全正常，故障隔离生效
+```
+
+**实测效果：** Ollama 崩溃时返回标准化错误码，不影响文件读写、命令执行等其他工具。
+
+---
+
+## 内置工具一览
+
+| Provider | 工具 | 适用场景 |
+|----------|------|---------|
+| **filesystem** | `read_file`, `write_file`, `list_dir`, `search_files`, `file_stat` | 读写项目文件、搜索代码、管理资源 |
+| **terminal** | `run_command`, `sysinfo` | 执行编译/测试命令、获取系统信息 |
+| **database** | `query`, `execute`, `list_tables`, `describe_table` | 查数据库、执行迁移、分析数据 |
+| **web** | `web_fetch`, `web_api`, `json_query` | 爬取网页、调用 API、解析 JSON |
+| **llm** | `llm_call`, `llm_ping`, `llm_list_models` | 本地推理、检查 Ollama 状态 |
+
+全部 17 个工具：`python main.py --demo`
+
+---
+
+## 架构设计
+
+### 协议内核统一
 
 ```
                     ┌──────────────────────────────────────────┐
@@ -53,28 +175,24 @@ curl -X POST http://localhost:9090/mcp \
                     ┌────────▼──────────────▼──────────────────┐
                     │          MCP Transport Layer              │
                     │    STDIOTransport  │  HTTPTransport       │
-                    │    (readline逐行)  │  (aiohttp SSE)      │
                     └────────┬──────────────┬──────────────────┘
                              │              │
                              └──────┬───────┘
                                     │  JSONRPCRequest
                     ┌───────────────▼──────────────────────────┐
-                    │        MCPProtocolHandler (唯一入口)       │
+                    │        MCPProtocolHandler (唯一执行入口)    │
                     │                                          │
                     │  ┌─────────────────────────────────┐     │
-                    │  │   Middleware Pipeline (中间件管道) │     │
-                    │  │                                  │     │
+                    │  │   Middleware Pipeline             │     │
                     │  │  before: [Auth] → [RateLimit]    │     │
-                    │  │     ↓                            │     │
                     │  │  core:  [ToolExecutor]           │     │
-                    │  │     ↓                            │     │
                     │  │  after: [Audit] → [Cache]        │     │
                     │  └─────────────────────────────────┘     │
                     │                                          │
                     │  ┌─────────────────────────────────┐     │
-                    │  │       ToolRegistry (统一注册表)    │     │
+                    │  │   ToolRegistry (17 tools)        │     │
                     │  │  Filesystem │ Terminal │ DB      │     │
-                    │  │  Web        │ LLM      │ ...     │     │
+                    │  │  Web        │ LLM      │         │     │
                     │  └─────────────────────────────────┘     │
                     └───────────────┬──────────────────────────┘
                                     │
@@ -84,83 +202,30 @@ curl -X POST http://localhost:9090/mcp \
                     └──────────────────────────────────────────┘
 ```
 
-### v1.3 → v2.0 核心变化
+### 升级亮点 (v1.3 → v2.0)
 
 | 维度 | v1.3 (旧) | v2.0 (新) |
 |------|-----------|-----------|
-| **执行入口** | 两条路径：ExternalAPIHandler 直接调 registry + ProtocolHandler 独立处理 | 唯一入口：`MCPProtocolHandler.handle_request()` |
-| **HTTP 层职责** | 混入工具执行逻辑 | 纯适配器：REST → JSON-RPC 转换 |
-| **错误码** | 自定义 -32000 | JSON-RPC 2.0 标准 (-32603 等) |
+| **执行入口** | 两条路径：API 直接调 registry + ProtocolHandler 独立处理 | 唯一入口：`MCPProtocolHandler.handle_request()` |
 | **中间件** | 无 | 可插拔管道：Auth → RateLimit → Audit → Cache |
+| **错误码** | 自定义 | JSON-RPC 2.0 标准 |
+| **Ollama 故障** | 无隔离，崩溃波及整个网关 | 故障隔离，单模型崩溃不影响其他工具 |
+| **Dify 集成** | 手动配 HTTP 节点 | 自动生成 OpenAPI Schema 一键导入 |
 | **会话管理** | 无跨传输共享 | SessionContext 统一跨 STDIO/HTTP |
 | **可观测性** | 无统一指标 | 协议内核统一收集，stats 端点 |
-| **流式输出** | 各传输层自行实现 | 协议内核统一 SSE 流式管道 |
-
-### 进程全景图
-
-```
-启动 → python main.py
-         │
-         ├── HTTP 模式 (--mode http)
-         │     │
-         │     ├── 监听 0.0.0.0:9090
-         │     ├── /mcp          → MCP JSON-RPC 端点
-         │     ├── /api/v1/      → REST API (Dify 自定义工具)
-         │     ├── /api/v1/health → 健康检查
-         │     ├── /api/v1/logs   → 审计日志
-         │     └── /api/v1/tenants → 租户管理
-         │
-         └── STDIO 模式 (--mode stdio)
-               │
-               ├── stdin  ← 读取 JSON-RPC 请求
-               ├── stdout → 输出 JSON-RPC 响应 (纯 JSON，无日志)
-               └── stderr → 所有日志/调试输出
-```
 
 ---
 
 ## 生态适配
 
-| 平台 | 方式 | 验证状态 | 说明 |
-|------|------|----------|------|
+| 平台 | 方式 | 验证状态 | 一句话说明 |
+|------|------|----------|-----------|
 | **Trae IDE** | STDIO (MCP) | ✅ 通过 | 标准 MCP 配置，可调全部 17 工具 |
-| **Dify** | HTTP REST API | ✅ 通过 | 自定义工具节点，自动发现工具列表 |
-| **Cursor** | STDIO / HTTP (MCP) | ✅ 兼容 | 同上，支持 setup_mcp.py 一键配置 |
-| **VS Code** | STDIO / HTTP (MCP) | ✅ 兼容 | 通过 MCP 插件接入 |
+| **Dify** | HTTP REST API | ✅ 通过 | 导入 OpenAPI Schema 一键注册所有工具 |
+| **Cursor** | STDIO / HTTP | ✅ 兼容 | 同上，支持 setup_mcp.py 一键配置 |
+| **VS Code** | STDIO / HTTP | ✅ 兼容 | 通过 MCP 插件接入 |
 | **Ollama** | REST API | ✅ 通过 | 内置 llm_call / llm_ping / llm_list_models |
-| **curl / HTTP 客户端** | REST / MCP | ✅ 通过 | 任意语言直接调用 |
-
-### 真实可用性验证
-
-```bash
-# 全部场景测试 (Trae STDIO + Dify HTTP)
-python -m pytest tests/test_scenarios.py -v
-
-# 结果:
-# tests/test_scenarios.py::test_stdio_mode PASSED  [Trae IDE 场景]
-# tests/test_scenarios.py::test_http_mode  PASSED  [Dify 平台场景]
-# ============================= 108 passed in 3.67s =============================
-```
-
-**Trae IDE STDIO 模式验证流程：**
-```
-1. 启动子进程: python main.py --mode stdio
-2. 发送 initialize 请求 → 收到 server_info
-3. 发送 tools/list 请求 → 收到 18+ 工具列表
-4. 发送 tools/call (echo) → 收到正常响应
-5. 发送 tools/call (read_file) → 路径安全校验通过
-6. 进程正常退出 ✓
-```
-
-**Dify HTTP REST 模式验证流程：**
-```
-1. 启动 HTTP 服务: python main.py --mode http --port 19090
-2. GET /api/v1/health → 200 {"status":"healthy"}
-3. POST /api/v1/tools/list → 工具列表 JSON
-4. POST /api/v1/tools/call → 工具调用成功
-5. GET /api/v1/logs → 审计日志记录完整
-6. 服务关闭 ✓
-```
+| **curl / HTTP** | REST / MCP | ✅ 通过 | 任意语言直接调用 |
 
 ---
 
@@ -198,25 +263,9 @@ python main.py --demo
 
 > 一键配置：`python scripts/setup_mcp.py`
 
-**Dify**：在 HTTP 请求节点配置：
-- 工具列表：`POST http://localhost:9090/api/v1/tools/list`
-- 工具调用：`POST http://localhost:9090/api/v1/tools/call`
-
-**Ollama**：启动 Ollama 后直接调用 `llm_call` / `llm_ping` / `llm_list_models` 工具
-
----
-
-## 内置工具
-
-| Provider | 工具 | 说明 |
-|----------|------|------|
-| **filesystem** | `read_file`, `write_file`, `list_dir`, `search_files`, `file_stat` | 路径隔离沙箱，防目录穿越 |
-| **terminal** | `run_command`, `sysinfo` | 命令黑/白名单 + 超时控制 |
-| **database** | `query`, `execute`, `list_tables`, `describe_table` | 参数化查询防 SQL 注入 |
-| **web** | `web_fetch`, `web_api`, `json_query` | HTTP/HTTPS + 超时 |
-| **llm** | `llm_call`, `llm_ping`, `llm_list_models` | Ollama 本地推理 |
-
-全部 17 工具：`python main.py --demo`
+**Dify**：在自定义工具中导入 OpenAPI Schema：
+- URL：`http://localhost:9090/api/v1/openapi.json`
+- 认证：`X-API-Key`
 
 ---
 
@@ -242,18 +291,11 @@ LLM/
 ├── core/                     # 基础设施
 │   ├── types.py              # JSON-RPC 类型定义
 │   └── exceptions.py         # 统一异常体系
-├── performance/              # 缓存 + 并行调度
 ├── config/                   # YAML 配置
-├── requirements/             # 依赖管理
 ├── tests/                    # 108 个测试
-│   ├── test_scenarios.py     # Trae+Dify 双场景端到端验证
-│   ├── test_integration.py   # 集成测试
-│   ├── test_mcp.py           # 协议层单元测试
-│   └── verify_imports.py     # 导入 + 安全校验验证
-├── examples/                 # 集成示例
+├── docs/                     # 文档 + 截图素材
 ├── scripts/                  # 工具脚本
 ├── docker/                   # Docker 部署
-├── docs/                     # 文档
 └── main.py                   # 入口
 ```
 
@@ -262,10 +304,20 @@ LLM/
 ## 测试
 
 ```bash
-pytest                              # 全部 108 个测试
-pytest tests/test_scenarios.py -v   # 双场景验证
-python tests/verify_imports.py      # 导入 + 安全校验
-ruff check . --select=E,F,W --ignore=E501  # 代码风格
+# 全部 108 个测试
+pytest
+
+# 双场景端到端验证 (Trae STDIO + Dify HTTP)
+pytest tests/test_scenarios.py -v
+
+# 导入 + 安全校验验证
+python tests/verify_imports.py
+
+# 全场景冒烟测试 + 素材采集
+python docs/smoke_test.py
+
+# 代码风格
+ruff check .
 ```
 
 ---
@@ -274,12 +326,11 @@ ruff check . --select=E,F,W --ignore=E501  # 代码风格
 
 | 文档 | 内容 |
 |------|------|
-| [Trae 接入指南](docs/Trae接入指南.md) | Trae IDE MCP 配置步骤 + STDIO 配置模板 |
-| [Dify 接入指南](docs/Dify平台自定义工具接入指南.md) | Dify 自定义工具节点配置 + 调试步骤 |
-| [架构设计](docs/架构设计.md) | 分层架构、多平台接入 |
+| [Trae 接入指南](docs/Trae接入指南.md) | Trae IDE MCP 配置步骤 |
+| [Dify 接入指南](docs/Dify平台自定义工具接入指南.md) | Dify 自定义工具节点配置 |
+| [架构设计](docs/架构设计.md) | 分层架构详解 |
 | [设计决策](docs/设计决策.md) | 技术选型决策记录 |
-| [MCP 协议规范](docs/MCP协议规范与实践.md) | MCP 协议详解 |
-| [性能优化](docs/性能优化与跑分.md) | 缓存 + 并行调度指标 |
+| [烟测报告](docs/screenshots/smoke_test_results.log) | 全场景冒烟测试结果 |
 
 ---
 

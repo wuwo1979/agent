@@ -1,7 +1,7 @@
 """检查 Ollama 是否在 CPU 模式下运行"""
-import urllib.request
 import json
 import sys
+import urllib.request
 
 # 1. Check basic connectivity
 try:
