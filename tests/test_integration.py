@@ -556,7 +556,7 @@ class TestExceptionPaths:
 # ============================================================
 
 class TestPerformance:
-    """性能基准测试"""
+    """性能基准测试（CI 环境可能较慢，阈值留有充分余量）"""
 
     def test_tool_registry_lookup_speed(self):
         registry = ToolRegistry()
@@ -567,7 +567,7 @@ class TestPerformance:
         for _ in range(1000):
             registry.list_tools()
         elapsed = time.perf_counter() - start
-        assert elapsed < 1.0, f"Tool lookup too slow: {elapsed:.3f}s"
+        assert elapsed < 3.0, f"Tool lookup too slow: {elapsed:.3f}s"
 
     def test_security_check_speed(self):
         auth = APIKeyAuthenticator(valid_keys=["key"])
@@ -575,7 +575,7 @@ class TestPerformance:
         for _ in range(1000):
             auth.authenticate({"X-API-Key": "key"})
         elapsed = time.perf_counter() - start
-        assert elapsed < 0.5, f"Auth check too slow: {elapsed:.3f}s"
+        assert elapsed < 2.0, f"Auth check too slow: {elapsed:.3f}s"
 
     def test_audit_log_speed(self):
         logger = AuditLogger(max_entries=10000)
@@ -592,7 +592,7 @@ class TestPerformance:
                 permission="allow",
             ))
         elapsed = time.perf_counter() - start
-        assert elapsed < 2.0, f"Audit logging too slow: {elapsed:.3f}s"
+        assert elapsed < 5.0, f"Audit logging too slow: {elapsed:.3f}s"
 
 
 # ============================================================

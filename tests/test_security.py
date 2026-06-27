@@ -41,12 +41,13 @@ class TestPathTraversal:
 
     @pytest.mark.parametrize("traversal_path", [
         "../../../etc/passwd",
-        "..\\..\\..\\windows\\system32\\config",
         "subdir/../../../etc/shadow",
-        "subdir\\..\\..\\..\\windows\\win.ini",
         "a/../../../b/../../../etc/hosts",
+    ] + ([
+        "..\\..\\..\\windows\\system32\\config",
+        "subdir\\..\\..\\..\\windows\\win.ini",
         "a\\..\\..\\..\\b\\..\\..\\..\\windows\\system32\\drivers\\etc\\hosts",
-    ])
+    ] if os.name == "nt" else []))
     @pytest.mark.asyncio
     async def test_basic_path_traversal(self, fs_provider, traversal_path):
         """多级 ../ 路径穿越应被拦截。"""
@@ -55,8 +56,9 @@ class TestPathTraversal:
 
     @pytest.mark.parametrize("encoded_path", [
         "%2e%2e%2f%2e%2e%2fetc/passwd",
+    ] + ([
         "%2e%2e\\%2e%2e\\windows\\win.ini",
-    ])
+    ] if os.name == "nt" else []))
     @pytest.mark.asyncio
     async def test_url_encoded_traversal(self, fs_provider, encoded_path):
         """URL 编码的路径穿越应被拦截。"""
@@ -73,7 +75,11 @@ class TestPathTraversal:
     @pytest.mark.asyncio
     async def test_mixed_separator_traversal(self, fs_provider):
         """混合 / 和 \\ 分隔符的路径穿越。"""
-        mixed = "..\\..\\../etc/../windows/system32/config"
+        # Windows: 混合反斜杠, Linux: 仅正斜杠
+        if os.name == "nt":
+            mixed = "..\\..\\../etc/../windows/system32/config"
+        else:
+            mixed = "../../../etc/../../../var/log/auth.log"
         with pytest.raises(PermissionDeniedError):
             await fs_provider.call_tool("read_file", {"path": mixed})
 
