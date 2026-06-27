@@ -304,21 +304,41 @@ class STDIOTransport:
             "params": params or {},
         })
 
+    @staticmethod
+    def _redirect_all_stdout_logging():
+        """
+        将所有 logger 的 stdout handler 重定向到 stderr。
+        STDIO 模式下，stdout 只能输出纯 JSON-RPC 消息，
+        任何多余的 print / logging 都会破坏协议格式导致解析失败。
+        """
+        import sys
+        root = logging.getLogger()
+        for handler in list(root.handlers):
+            if hasattr(handler, 'stream'):
+                if handler.stream is sys.stdout:
+                    handler.stream = sys.stderr
+        # 确保所有子 logger 的 handler 也不指向 stdout
+        for name in logging.root.manager.loggerDict:
+            logger_obj = logging.getLogger(name)
+            for handler in list(logger_obj.handlers):
+                if hasattr(handler, 'stream') and handler.stream is sys.stdout:
+                    handler.stream = sys.stderr
+            # 如果 propagate=True, handler 会被根 logger 处理，但 stream 已修改
+            logger_obj.propagate = True
+
     async def serve(self):
         """启动 STDIO 服务"""
         import sys
 
-        # 重定向所有 Python logging 到 stderr
-        root_logger = logging.getLogger()
-        for handler in root_logger.handlers:
-            if hasattr(handler, 'stream') and handler.stream is sys.stdout:
-                handler.stream = sys.stderr
-        # 确保 mcp_gateway 日志走 stderr
+        # ── 第一步：强制所有日志重定向到 stderr ──────────────
+        self._redirect_all_stdout_logging()
+
+        # 确保 mcp_gateway 日志最终落 stderr
         mcp_logger = logging.getLogger("mcp_gateway")
-        for handler in mcp_logger.handlers:
-            if hasattr(handler, 'stream') and handler.stream is sys.stdout:
-                handler.stream = sys.stderr
-        if not mcp_logger.handlers:
+        if not any(
+            hasattr(h, 'stream') and h.stream is sys.stderr
+            for h in mcp_logger.handlers
+        ):
             stderr_handler = logging.StreamHandler(sys.stderr)
             stderr_handler.setFormatter(logging.Formatter(
                 '%(asctime)s [%(levelname)s] %(name)s: %(message)s'

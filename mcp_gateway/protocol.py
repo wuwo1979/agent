@@ -187,6 +187,10 @@ class SessionContext:
     transport: str = "http"
     metadata: Dict[str, Any] = field(default_factory=dict)
 
+    # ── 跨传输统一状态 ─────────────────────────────────────
+    working_dir: str = ""        # 终端工作目录（HTTP/STDIO 共享）
+    path_cache: Dict[str, str] = field(default_factory=dict)  # 文件路径缓存
+
 
 class SessionManager:
     """会话管理器 — 生命周期管理 + 过期清理。"""

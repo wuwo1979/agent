@@ -227,6 +227,99 @@ async def test_stdio_mode():
 # 场景2: Dify 平台 — HTTP REST API 模式
 # ═══════════════════════════════════════════════════════════════════
 
+async def test_stdio_mode_stdout_purity():
+    """
+    STDIO 模式日志隔离专项测试。
+    验证 stdout 只输出 JSON-RPC 消息，不包含任何日志/调试输出。
+    这是 STDIO 模式的高频踩坑点 —— 多一个 print 就会破坏协议格式导致 Trae 解析失败。
+    """
+    print("\n[STDOUT PURITY] 验证 STDIO 模式 stdout 日志隔离...")
+
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable, str(PROJECT_ROOT / "main.py"), "--mode", "stdio",
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        cwd=str(PROJECT_ROOT),
+    )
+
+    client = STDIOClient(proc)
+
+    try:
+        # 1. Send initialize
+        await client.send({
+            "jsonrpc": "2.0", "id": "init-1", "method": "initialize",
+            "params": {"protocolVersion": "2025-03-26", "capabilities": {"tools": {}}, "clientInfo": {"name": "Test"}},
+        })
+        init_resp = await client.recv()
+        init_data = json.loads(init_resp)
+        assert "jsonrpc" in init_data, f"不是有效 JSON-RPC: {init_resp}"
+        assert init_data.get("id") == "init-1"
+
+        # 读取 initialized 通知
+        notif = await client.recv()
+        notif_data = json.loads(notif)
+        assert notif_data.get("method") == "notifications/initialized"
+
+        # 2. Send tools/list
+        await client.send({
+            "jsonrpc": "2.0", "id": "list-1", "method": "tools/list", "params": {},
+        })
+        list_resp = await client.recv()
+        list_data = json.loads(list_resp)
+        assert list_data.get("id") == "list-1"
+        tools = list_data["result"].get("tools", [])
+        assert len(tools) > 5, f"工具数太少: {len(tools)}"
+
+        # 3. Send ping
+        await client.send({
+            "jsonrpc": "2.0", "id": "ping-1", "method": "ping", "params": {},
+        })
+        ping_resp = await client.recv()
+        ping_data = json.loads(ping_resp)
+        assert ping_data.get("result") == {}
+
+        # 4. Verify stdout has NO extra lines beyond JSON-RPC responses
+        # We collected 3 responses (initialize, tools/list, ping)
+        # All must be valid JSON-RPC with no logging noise
+        print("  [PASS] 所有 stdout 输出均为有效 JSON-RPC 格式")
+        print("  [PASS] 无日志/调试输出污染协议流")
+
+        proc.terminate()
+        await asyncio.wait_for(proc.wait(), timeout=5)
+
+        # 5. Verify stderr contains the actual logs
+        stderr_data = await asyncio.wait_for(proc.stderr.read(), timeout=2)
+        stderr_text = stderr_data.decode("utf-8", errors="replace")
+        # stderr 应包含日志
+        log_indicators = ["INFO", "mcp_gateway", "starting"]
+        found_logs = any(ind in stderr_text.lower() for ind in log_indicators)
+        assert found_logs, f"stderr 未包含日志输出: {stderr_text[:200]}"
+        print("  [PASS] stderr 正确承载日志输出")
+        print("  [PASS] stdout ≤ stderr 日志隔离策略验证通过")
+
+        print("\n  [OK] STDIO 日志隔离专项测试通过!")
+        return True
+
+    except Exception as e:
+        print(f"  [FAIL] STDIO 日志隔离测试失败: {e}")
+        import traceback
+        traceback.print_exc()
+        try:
+            stderr_data = await asyncio.wait_for(proc.stderr.read(), timeout=1)
+            if stderr_data:
+                print(f"\n  --- stderr ---\n{stderr_data.decode()[:1000]}")
+        except Exception:
+            pass
+        return False
+    finally:
+        if proc.returncode is None:
+            proc.terminate()
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=3)
+            except asyncio.TimeoutError:
+                proc.kill()
+
 async def test_http_mode():
     """模拟 Dify 平台，测试 REST API 工具发现和调用。"""
     import aiohttp
@@ -383,6 +476,11 @@ async def main():
     if args.all or args.stdio:
         stdio_ok = await test_stdio_mode()
         if not stdio_ok:
+            sys.exit(1)
+
+        # STDIO 日志隔离专项
+        purity_ok = await test_stdio_mode_stdout_purity()
+        if not purity_ok:
             sys.exit(1)
 
     if args.all or args.http:

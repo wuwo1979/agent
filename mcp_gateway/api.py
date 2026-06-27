@@ -300,6 +300,192 @@ class ExternalAPIHandler:
 
     # ── tenants ──────────────────────────────────────────────────
 
+    # ── Ollama 健康检查 — 直接探测推理服务 ──────────────────────
+
+    async def handle_ollama_health(self) -> Dict[str, Any]:
+        """
+        GET /api/v1/ollama/health
+        探测 Ollama 推理服务是否可用，返回详细健康状态。
+        即使 Ollama 不可用，网关本身不受影响（故障隔离）。
+        """
+        try:
+            req = urllib.request.Request("http://127.0.0.1:11434/api/tags")
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+                models = result.get("models", [])
+                model_list = [{
+                    "name": m.get("name"),
+                    "size_gb": round(m.get("size", 0) / (1024**3), 2),
+                    "family": m.get("details", {}).get("family", ""),
+                } for m in models]
+                return self._rest_response({
+                    "status": "available",
+                    "url": "http://127.0.0.1:11434",
+                    "models_count": len(models),
+                    "models": model_list,
+                    "gateway": "Ollama 代理正常，支持降级：单模型崩溃不影响其他工具",
+                })
+        except urllib.error.URLError as e:
+            return self._rest_response({
+                "status": "unavailable",
+                "url": "http://127.0.0.1:11434",
+                "error": str(e.reason),
+                "gateway": "Ollama 不可用，但网关其他功能正常（故障隔离已生效）",
+            }, status=200)
+        except Exception as e:
+            return self._rest_response({
+                "status": "unavailable",
+                "url": "http://127.0.0.1:11434",
+                "error": str(e),
+                "gateway": "Ollama 不可用，但网关其他功能正常（故障隔离已生效）",
+            }, status=200)
+
+    # ── OpenAPI 3.0 Schema — Dify 可直接导入 ────────────────────
+
+    async def handle_openapi(self) -> Dict[str, Any]:
+        """
+        GET /api/v1/openapi.json
+
+        生成符合 Dify 自定义工具规范的 OpenAPI 3.0 Schema。
+        用户可以在 Dify 中直接导入此 Schema 一键注册所有工具。
+
+        Dify 自定义工具规范：
+        - 每个工具 = 一个 HTTP POST 端点 /api/v1/tools/call
+        - 参数通过 requestBody 传递
+        - response 格式统一
+        """
+        # 通过协议内核获取工具列表
+        req = JSONRPCRequest(id="api-openapi", method="tools/list", params={})
+        resp = await self.protocol.handle_request(req)
+
+        tools = resp.result.get("tools", []) if not resp.error else []
+
+        # 构建 OpenAPI Schema 路径
+        paths = {}
+        schemas = {}
+
+        for tool in tools:
+            tool_name = tool.get("name", "")
+            schema = tool.get("inputSchema", {})
+            properties = schema.get("properties", {})
+            required = schema.get("required", [])
+
+            # 为每个工具的 properties 生成 Schema 引用
+            param_schema_name = f"Tool_{tool_name}_params"
+            schemas[param_schema_name] = {
+                "type": "object",
+                "properties": {},
+                "required": required,
+            }
+            for prop_name, prop_info in properties.items():
+                schemas[param_schema_name]["properties"][prop_name] = {
+                    "type": prop_info.get("type", "string"),
+                    "description": prop_info.get("description", ""),
+                    "default": prop_info.get("default"),
+                }
+
+            paths[f"/api/v1/tools/{tool_name}"] = {
+                "post": {
+                    "summary": tool.get("description", ""),
+                    "description": tool.get("description", ""),
+                    "operationId": f"call_{tool_name}",
+                    "tags": ["tools"],
+                    "parameters": [
+                        {
+                            "name": "X-API-Key",
+                            "in": "header",
+                            "description": "API密钥",
+                            "required": True,
+                            "schema": {"type": "string"},
+                        }
+                    ],
+                    "requestBody": {
+                        "required": True,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string",
+                                            "description": "工具名称",
+                                            "example": tool_name,
+                                        },
+                                        "arguments": {
+                                            "$ref": f"#/components/schemas/{param_schema_name}",
+                                        },
+                                    },
+                                    "required": ["name", "arguments"],
+                                }
+                            }
+                        },
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "工具执行成功",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "success": {"type": "boolean"},
+                                            "result": {"type": "string"},
+                                            "duration_ms": {"type": "number"},
+                                        },
+                                    }
+                                }
+                            },
+                        },
+                        "401": {"description": "未授权"},
+                        "403": {"description": "权限不足"},
+                        "500": {"description": "内部错误"},
+                    },
+                }
+            }
+
+        openapi_schema = {
+            "openapi": "3.0.3",
+            "info": {
+                "title": "MCP Agent Gateway — Dify 自定义工具接口",
+                "description": (
+                    "自动生成的 OpenAPI 3.0 Schema，可直接导入 Dify 自定义工具。\n\n"
+                    "使用方式：\n"
+                    "1. 在 Dify 中创建「自定义工具」\n"
+                    "2. 选择「导入 OpenAPI Schema」\n"
+                    "3. 填入此 URL: http://your-gateway:9090/api/v1/openapi.json\n\n"
+                    "所有工具通过统一的 POST /api/v1/tools/call 端点调用，\n"
+                    "需在 Header 中传入 X-API-Key。"
+                ),
+                "version": "2.0.0",
+                "contact": {
+                    "name": "MCP Agent Gateway",
+                    "url": "https://github.com/wuwo1979/agent",
+                },
+            },
+            "servers": [
+                {
+                    "url": "http://localhost:9090",
+                    "description": "本地网关",
+                }
+            ],
+            "paths": paths,
+            "components": {"schemas": schemas},
+            "tags": [
+                {
+                    "name": "tools",
+                    "description": "MCP 工具调用 — 所有工具通过统一的 call 端点执行",
+                }
+            ],
+            "x-dify": {
+                "description": "Dify 自定义工具兼容模式",
+                "tool_endpoint": "/api/v1/tools/call",
+                "auth_header": "X-API-Key",
+                "import_tip": "请在 Dify 自定义工具中使用「导入 OpenAPI Schema」功能导入此文件",
+            },
+        }
+
+        return self._rest_response(openapi_schema)
+
     async def handle_tenants_list(self) -> Dict[str, Any]:
         """GET /api/v1/tenants"""
         from mcp_gateway.tenancy import get_tenancy
@@ -610,6 +796,12 @@ def create_api_routes(
     async def _tenants_list(request) -> Dict[str, Any]:
         return await api_handler.handle_tenants_list()
 
+    async def _openapi(request) -> Dict[str, Any]:
+        return await api_handler.handle_openapi()
+
+    async def _ollama_health(request) -> Dict[str, Any]:
+        return await api_handler.handle_ollama_health()
+
     # CORS preflight
     async def _cors_preflight(request) -> Dict[str, Any]:
         return {
@@ -625,6 +817,8 @@ def create_api_routes(
     routes[("GET", "/api/v1/logs")] = _logs
     routes[("GET", "/api/v1/stats")] = _stats
     routes[("GET", "/api/v1/tenants")] = _tenants_list
+    routes[("GET", "/api/v1/openapi.json")] = _openapi
+    routes[("GET", "/api/v1/ollama/health")] = _ollama_health
     routes[("OPTIONS", "/api/v1/tools/list")] = _cors_preflight
     routes[("OPTIONS", "/api/v1/tools/call")] = _cors_preflight
 
