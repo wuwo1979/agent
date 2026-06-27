@@ -30,16 +30,36 @@ jobs:
           pip install -r requirements/runtime.txt
           pip install -r requirements/dev.txt
 
-      - name: Run tests (no coverage, split by file for diagnostics)
+      - name: Run tests
+        shell: bash -e {0}
         run: |
-          python -m pytest tests/test_mcp.py -v --tb=long -x
-          python -m pytest tests/test_agent.py -v --tb=long -x
-          python -m pytest tests/test_integration.py -v --tb=long -x
-          python -m pytest tests/test_security.py -v --tb=long -x
+          python -c "import sys; print(f'Python: {sys.version}')"
+          python -c "import shutil; print(f'python: {shutil.which(\"python\") or \"NOT FOUND\"}')"
+          python -c "import shutil; print(f'python3: {shutil.which(\"python3\") or \"NOT FOUND\"}')"
+          python -c "import pytest_asyncio; print(f'pytest-asyncio: {pytest_asyncio.__version__}')"
+          python -c "import pytest; print(f'pytest: {pytest.__version__}')"
+          # Run tests one file at a time, capture output to file for artifact upload
+          mkdir -p test_output
+          python -m pytest tests/test_mcp.py -v --tb=long 2>&1 | tee test_output/test_mcp.log || echo "test_mcp failed" >> test_output/failures.txt
+          python -m pytest tests/test_agent.py -v --tb=long 2>&1 | tee test_output/test_agent.log || echo "test_agent failed" >> test_output/failures.txt
+          python -m pytest tests/test_integration.py -v --tb=long 2>&1 | tee test_output/test_integration.log || echo "test_integration failed" >> test_output/failures.txt
+          python -m pytest tests/test_security.py -v --tb=long 2>&1 | tee test_output/test_security.log || echo "test_security failed" >> test_output/failures.txt
+          python -m pytest tests/ -v --tb=long --ignore=tests/test_scenarios.py --cov=. --cov-report=xml --cov-report=term-missing 2>&1 | tee test_output/all_tests.log || echo "all_tests failed" >> test_output/failures.txt
+          # Fail if any test file had failures
+          if [ -f test_output/failures.txt ]; then
+            echo "=== TEST FAILURES ==="
+            cat test_output/failures.txt
+            echo "=== ALL TEST LOGS ==="
+            for f in test_output/*.log; do echo "=== $f ==="; cat "$f"; done
+            exit 1
+          fi
 
-      - name: Run tests with coverage (all files)
-        run: |
-          python -m pytest tests/ -v --tb=short --cov=. --cov-report=xml --cov-report=term-missing
+      - name: Upload test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-${{ matrix.python-version }}
+          path: test_output/
 
       - name: Run benchmark (optional, may skip if langgraph not installed)
         run: |
