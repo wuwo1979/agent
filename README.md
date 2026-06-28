@@ -24,7 +24,8 @@
 
 - [快速开始](#快速开始)
 - [项目背景](#项目背景)
-  - [解决什么问题](#解决什么问题)
+  - [适用场景](#适用场景)
+  - [核心特点](#核心特点)
   - [生态适配关系](#生态适配关系)
 - [架构说明](#架构说明)
   - [调用链路架构](#调用链路架构)
@@ -89,13 +90,12 @@ curl.exe -X POST http://localhost:9090/mcp \
 ```json
 {
   "status": "healthy",
-  "version": "2.0.0",
   "server": "MCP 本地工具网关",
+  "version": "2.0.0",
+  "protocol_handlers": 11,
   "tools": 17,
-  "modules": {
-    "mcp": true, "user_tools": true, "filesystem": true,
-    "terminal": true, "database": false, "web": true, "ollama": true
-  }
+  "providers": 5,
+  "active_sessions": 0
 }
 ```
 
@@ -120,17 +120,28 @@ curl.exe -X POST http://localhost:9090/mcp \
 
 ## 项目背景
 
-### 解决什么问题
+MCP Agent Gateway 是一个基于 MCP (Model Context Protocol) 协议的工具网关。
 
-AI Agent（Trae、Dify、Cursor）在本地开发环境中能力受限：
+它实现了 MCP 协议的 JSON-RPC 内核，将本地工具（文件读写、终端命令、数据库查询、网页抓取、Ollama 推理）封装为 MCP 工具接口，通过 STDIO 或 HTTP 传输层暴露给 AI Agent 调用。
 
-| 场景 | 之前（无网关） | 之后（有网关） |
-|------|---------------|---------------|
-| **协议适配** | Trae 用 STDIO，Dify 用 HTTP，两套轮子两套维护 | 单协议内核，STDIO/HTTP 仅做传输适配 |
-| **文件操作** | Agent 只能聊天，无法读写项目文件 | 5 个文件工具，路径沙箱保护 |
-| **命令执行** | 无法编译测试、运行脚本 | 安全终端，shell 注入拦截 |
-| **模型调用** | 需要手动启动 Ollama + 写 HTTP 客户端 | 统一 `llm_call` 接口，故障隔离 |
-| **权限安全** | 无认证、无审计、无隔离 | 多租户 + API Key + 审计日志 + 56 项安全测试 |
+**并不会替代 Agent 本身的能力**，而是作为一个可选的本地工具后端，在您需要 Agent 操控本地环境时提供安全可控的工具接口。
+
+### 适用场景
+
+- 在 Trae / Cursor 中通过 MCP STDIO 接入，让 Agent 调用本地文件、终端、数据库等工具
+- 在 Dify 中通过 HTTP + OpenAPI Schema 导入，作为自定义工具节点使用
+- 需要为本地工具调用添加安全管控（路径沙箱、命令注入拦截、权限隔离）时
+- 需要统一的日志追踪和审计能力时
+
+### 核心特点
+
+| 特点 | 说明 |
+|------|------|
+| **统一协议层** | 单 JSON-RPC 协议内核，STDIO 和 HTTP 共享同一套逻辑，仅传输层不同 |
+| **17 个内置工具** | 文件读写/搜索、终端命令执行、数据库查询、网页抓取、Ollama 推理 |
+| **安全管控** | 路径沙箱、shell 注入拦截、API Key 认证、多租户隔离 |
+| **可观测性** | 结构化 JSON 日志 + request_id 全链路追踪 |
+| **可插拔中间件** | 认证 → 限流 → 审计 → 缓存管道，可自由组合 |
 
 ### 生态适配关系
 
@@ -157,8 +168,8 @@ AI Agent（Trae、Dify、Cursor）在本地开发环境中能力受限：
 ```
 
 - **Trae / Cursor / VS Code**: 通过 MCP STDIO 协议接入，网关作为 MCP Server 运行
-- **Dify**: 通过 HTTP REST + OpenAPI Schema 一键导入工具
-- **Ollama**: 作为后端推理服务，网关提供故障隔离层（CUDA 崩溃不波及网关）
+- **Dify**: 通过 HTTP REST + OpenAPI Schema 导入工具
+- **Ollama**: 作为后端推理服务，网关转发 LLM 请求并添加故障隔离
 
 ---
 
@@ -394,8 +405,8 @@ python main.py --config config/myconfig.yaml
 | 租户 ID | 标签 | API Key | 权限范围 |
 |---------|------|---------|---------|
 | `admin` | 管理员（全部权限） | `admin-key-001` | 允许所有工具，访问所有文件 |
-| `dify_default` | Dify 默认租户 | `dify-key-001` | 仅允许文件/数据库/Web/LLM 工具，限制文件访问范围 |
-| `ollama_local` | Ollama 本地推理 | `ollama-key-001` | 仅允许 `llm_call`、`llm_ping`、`llm_list_models` |
+| `dify_default` | Dify 默认租户 | `dify-key-001` | 允许系统信息、文件读写、Web 抓取、LLM 调用（不含数据库和终端） |
+| `ollama_local` | Ollama 本地推理 | `ollama-key-001` | 允许 LLM 调用、系统信息、文件读取、Web 抓取 |
 
 ### 使用方式
 
@@ -408,7 +419,7 @@ curl.exe -X POST http://localhost:9090/mcp \
   -H "X-API-Key: admin-key-001" \
   -d '{"jsonrpc":"2.0","id":"1","method":"tools/list","params":{}}'
 
-# 使用 ollama 租户（仅能调用 LLM 工具）
+# 使用 ollama 租户
 curl.exe -X POST http://localhost:9090/api/v1/tools/call \
   -H "Content-Type: application/json" \
   -H "X-API-Key: ollama-key-001" \
@@ -491,7 +502,7 @@ curl.exe -X POST http://localhost:9090/mcp \
 
 ## 安全设计
 
-网关内置三层安全防护，面向真实攻击场景验证：
+网关内置三层安全防护：
 
 | 防护层 | 机制 | 覆盖的攻击手段 |
 |--------|------|---------------|
@@ -625,15 +636,15 @@ python main.py --status
 
 ```bash
 python main.py --demo
-# 输出中会显示：
-#   → tools/list 缓存命中 (1/1)
-#   → read_file 缓存命中 (2/2)
-#   最终缓存命中率: >= 78%
+# 输出中会显示缓存统计：
+#   → Cache hit rate: xx.x%
+#   → Tokens saved: xxx
+#   → Token save rate: xx.x%
 ```
 
 <p align="center">
   <img src="docs/assets/performance_chart.png" width="70%" alt="性能基准数据">
-  <br><em>图：性能基准 — 缓存命中率 78% / 并行吞吐 2.9x / 错误码覆盖 100%</em>
+  <br><em>图：性能基准 — 缓存命中率 42.9% / 并行吞吐 2.8x / 错误码覆盖 100%（benchmark.py 实测）</em>
 </p>
 
 ---
@@ -668,7 +679,7 @@ python main.py --demo
 | **v1.0** | MCP 协议基础 + HTTP REST 双路径 |
 | **v1.3** | 多租户、审计日志、路径沙箱、权限控制、OpenAPI Schema |
 | **v2.0** | 协议内核统一 + 中间件管道 + Ollama 故障隔离 + Dify OpenAPI Schema + 统一错误码 + 结构化日志 + 56 项安全测试 + Docker 部署 + --demo 模式 |
-| **v2.1** | README 全面重构：目录导航 + 项目背景对比 + 生态关系图 + Docker/配置/多租户说明 + 缓存测试样例 + 架构图纵向分层 + CI 跨平台兼容修复 |
+| **v2.1** | README 重构：补充目录导航、Docker/配置/多租户说明、缓存测试样例、架构图纵向分层；CI 跨平台兼容修复 |
 
 ---
 
